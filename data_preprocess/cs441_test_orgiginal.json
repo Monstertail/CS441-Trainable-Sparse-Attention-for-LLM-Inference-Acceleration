@@ -1,0 +1,450 @@
+[
+{
+"question": "Which of these are false?\na) Processing data may make information easier to access, but you will always lose some information.\nb) Although an image, document, and audio signal all seem very different to humans, each of them needs to be represented as an array of numbers to apply machine learning.\nc) You can use the same set of examples to train your algorithm as you use to test it.\nd) An underlying assumption of machine learning is that examples with some things in common (e.g. input features) are likely to have other things in common (e.g. target labels)",
+"answer": "a, c"
+},
+{
+"question": "Which of these types of data can be represented as an array of numbers?\na) Free-form text\nb) An image\nc) Time-series, e.g. amplitude over time\nd) A mix of categorical and numerical data, e.g. from a house sale form",
+"answer": "a, b, c, d"
+},
+{
+"question": "You've defined a k-nearest neighbor classifier knn(x_query, x_train, y_train, K) that outputs the predicted query labels. Suppose x_train and x_test are created to be random 10-dim vectors, also with random binary labels y_train and y_test. Which of these are true?\na) knn(x_test, x_train, K=1) is expected to have a testing error rate of 50%\nb) knn(x_test, x_train, K=3) is expected to have a testing error rate of 50%\nc) knn(x_train, x_train, K=1) is expected to have a training error rate of 0%\nd) knn(x_train, x_train, K=3) is expected to have a training error rate of 0%",
+"answer": "a, b, c"
+},
+{
+"question": "Which of these are true regarding KNN?\na) A KNN classifier can be used even if there is only one example per class.\nb) The accuracy of KNN depends a lot on the feature representation and the number of examples\nc) As K increases, the decision boundary gets sharper",
+"answer": "a, b"
+},
+{
+"question": "In the table below (True vs Predicted), what is the error rate? (Assuming L=Loss, T=Tie, W=Win; Rows=True, Cols=Predicted; L:0,1,0; T:0,0.5,0.5; W:0,0,1)\na) 0%\nb) 20%\nc) 40%\nd) 60%\ne) 80%\nf) 100%",
+"answer": "Error calculation ambiguous from text snippet, but marked as 50% in standard interpretation or question implies specific context."
+},
+{
+"question": "Based on the same confusion matrix, which row has an error?\na) L\nb) T\nc) W",
+"answer": "b"
+},
+{
+"question": "If yesterday's temperature is 1C, what is today's predicted temperature using 3-NN? (Based on the scatter plot provided in the document)\na) 1.2\nb) 0\nc) -1\nd) -1.4\ne) -2.1",
+"answer": "d"
+},
+{
+"question": "If yesterday's temperature is 25C, what is the predicted temperature for today using 1-NN?\na) 1.5\nb) 3.5\nc) 15.0\nd) 25.0\ne) No prediction is valid",
+"answer": "b"
+},
+{
+"question": "Which of these is a regression problem?\na) Predict a child's height at age 12 given the parents' heights and child's height at ages 0 to 3.\nb) Predict whether a child will be taller than average or shorter than average.\nc) Predict the price of Nvidia stock in 1 month\nd) Predict how many days it will take for a house to sell.\ne) Predict whether a house will sell in 0-3 months, 3-6 months, or longer.",
+"answer": "a, c, d"
+},
+{
+"question": "If we increase K in K-NN, which of these should increase?\na) Bias\nb) Variance\nc) Generalization Error\nd) Test error",
+"answer": "a"
+},
+{
+"question": "If we increase K in K-NN, which of these should decrease?\na) Bias\nb) Variance\nc) Generalization error\nd) Test error",
+"answer": "b, c"
+},
+{
+"question": "I plot training error and validation error as I change one of the hyperparameters of my model (e.g. K). I see signs of overfitting when...\na) Training error drops\nb) Training error reaches zero\nc) Training error starts to go up\nd) Validation error drops\ne) Validation error starts to rise",
+"answer": "e"
+},
+{
+"question": "Which of these statements are true regarding Search and Clustering?\na) Even if we are just doing brute force (exact) search, using libraries like FAISS can give a huge speed-up\nb) Locality sensitive hashing can guarantee to return an exact match, as long as you don't use too many hash projections\nc) In random projection LSH, with more bits, you will typically get better recall, but it takes longer",
+"answer": "a, c"
+},
+{
+"question": "Which of these statements are true regarding K-means?\na) K-means is guaranteed to reach a global optimum\nb) K-means is guaranteed to reach a local optimum (solution cannot be improved by either re-assigning points or updating cluster centers)\nc) If there is much more variance along one dimension than the others, that dimension will have more effect on the K-means clustering\nd) K-means can be viewed as a kind of compression, if you represent each data point with the id of its cluster center",
+"answer": "b, c, d"
+},
+{
+"question": "Since I have so many data points, K-means is too slow. So I used....\na) Hierarchical K-means\nb) Agglomerative clustering\nc) Neither one helps with that problem",
+"answer": "a"
+},
+{
+"question": "I think my data has some kind of manifold structure to it, so instead of K-means, I used....\na) Hierarchical K-means\nb) Agglomerative clustering\nc) Neither one helps reflect the neighborhood structure",
+"answer": "b"
+},
+{
+"question": "If X consists of N data points of d dimensions, how many PCA components are needed to guarantee the data can be perfectly reconstructed?\na) N\nb) d\nc) N*d\nd) min(N,d)\ne) max(N,d)\nf) It's not possible with any number",
+"answer": "d"
+},
+{
+"question": "PCA aims to create a basis function, such that...\na) The first dimension is the direction of greatest variance\nb) Each vector is orthogonal to each other vector\nc) First N vectors are the linear projection onto N dimensions that maximally preserves the original data variance\nd) As much important information as possible is retained in the first dimensions",
+"answer": "a, b, c"
+},
+{
+"question": "Which of these embeddings are designed to preserve local structure (similarities of nearby points)?\na) PCA\nb) MDS\nc) ISOMAP\nd) t-SNE",
+"answer": "c, d"
+},
+{
+"question": "In which of these cases is linear regression a better choice than KNN regression?\na) You have few data points, and there are strong correlations between individual features and target value\nb) You have data for a trend over time, and you want to extrapolate to a future time\nc) The target value depends on the input features in complex ways that may require considering multiple features together\nd) You want a very fast regression function\ne) You want some measure of which features are most important",
+"answer": "d, e"
+},
+{
+"question": "Which of these is true regarding regularization?\na) L1 regularization is expected to give a more accurate model than L2\nb) L2 regularization applies a squared penalty to weights, forcing many weights to be exactly 0\nc) L2-regularized regression fitting is more efficient than L1-regularized fitting\nd) Without regularization, the linear regression fitting is under-constrained if the number of data points is less than the number of dimensions.\ne) You can solve for the best regularization parameter by minimizing the training error",
+"answer": "d"
+},
+{
+"question": "Suppose x1 and x2 contain almost the same information, but x2 is slightly more informative for predicting y. Which of these are true?\na) L1 regularization will lead to a high value for w2 and w1=0\nb) L1 regularization will lead to w1 ~= w2\nc) L2 regularization will lead to a high value for w2 and w1=0\nd) L2 regularization will lead to w1 ~= w2",
+"answer": "a, d"
+},
+{
+"question": "Which of these are true regarding training data size and regularization?\na) With more training data, regularization has less benefit\nb) With less training data, regularization has more benefit\nc) Regularization introduces bias but decreases the variance, which is expected to increase training error but might decrease test error\nd) As you get more training data, the training error is expected to increase.\ne) As you get more training data, the gap narrows between prediction error on the train and test sets.",
+"answer": "a, b, c, d, e"
+},
+{
+"question": "What is being maximized in linear logistic regression?\na) The log probability of the true labels given the features\nb) The sum of log odds ratios\nc) The sum of probabilities of the labels given data\nd) Something else",
+"answer": "a"
+},
+{
+"question": "Suppose for a spam classifier we have 5K training examples with 100 feature dimensions. Which of these is an advantage of linear logistic regression, compared to KNN?\na) Faster to learn a model\nb) Faster prediction\nc) Requires less storage\nd) Can assign different importance to different features\ne) Can fit more complex decision functions\nf) Has lower training error\ng) Has less generalization error",
+"answer": "b, c, d"
+},
+{
+"question": "In the plot below (SVM vs LogReg), which of these are true?\na) If I remove an 'x' that is not circled and retrain a logistic regression model, the decision boundary will change.\nb) If I remove an 'x' that is not circled and retrain a linear SVM model, the decision boundary will change.\nc) If I remove a circled data point and retrain a linear SVM model, the decision boundary will change.\nd) Every data point affects the classifier weights in a logistic regression model, but only support vectors affect the weights in an SVM",
+"answer": "c, d"
+},
+{
+"question": "Which of these are true regarding SVMs?\na) If my data is not linearly separable, I can't use an SVM model.\nb) The use of a slack variable enables SVM models to fit to data that cannot be perfectly separated\nc) A linear SVM and linear logistic regression have the same classifier form, but will find different parameters due to differing objective/loss functions\nd) Kernelized SVM models can fit non-linear decision functions",
+"answer": "b, c, d"
+},
+{
+"question": "If we want to predict y from x1 and x2, under the Naive Bayes classifier assumption, what is P(y, x1, x2)?\na) P(x1|y)P(x2|y)P(y)\nb) P(y|x1)P(y|x2)P(y)\nc) P(x1)P(x2)P(y)\nd) P(x1|y)P(x2|y)\ne) P(x1|y)+P(x2|y)+P(y)",
+"answer": "a"
+},
+{
+"question": "For the data table provided (x1, x2, y), what is P(x1=1, x2=1, y=1) under the Naive Bayes assumption without using a prior?\na) 1/2 * 3/4 * 1/2\nb) 3/4 * 3/4 * 1/2\nc) 5/8 * 5/8 * 1/2\nd) 3/4 * 3/4",
+"answer": "b"
+},
+{
+"question": "For the same data table, what is P(x1=1, x2=1, y=1) under the Naive Bayes assumption using the prior alpha=1?\na) 1/2 * 3/4 * 1/2\nb) 3/4 * 3/4 * 1/2\nc) 5/8 * 5/8 * 1/2\nd) 2/3 * 2/3 * 1/2",
+"answer": "d"
+},
+{
+"question": "Suppose I wanted to identify a fruit based on its weight, color (yellow, green, ...), and shape (round, elongated, ...). Which of these probability functions would make sense to model with a categorical distribution?\na) P(weight | fruit_type)\nb) P(color | fruit_type)\nc) P(shape | fruit_type)",
+"answer": "b, c"
+},
+{
+"question": "Which of these probability functions would make sense to model with a Gaussian distribution?\na) P(weight | fruit_type)\nb) P(color | fruit_type)\nc) P(shape | fruit_type)",
+"answer": "a"
+},
+{
+"question": "Does Naive Bayes still apply, even if the class to predict and features are a mix of discrete and continuous variables?\na) Yes\nb) No\nc) Sometimes, not always",
+"answer": "a"
+},
+{
+"question": "Suppose I want to model the probability of a penguin's height. I think there are probably two groups... What is the latent variable?\na) The number of penguins\nb) The mean and std of penguin height for each group\nc) Whether each penguin is in group 1 or 2\nd) The fraction of penguins that are in group 1 or 2\ne) The height of each penguin in our data",
+"answer": "c"
+},
+{
+"question": "Which of these are model parameters in the penguin problem?\na) The number of penguins\nb) The mean and std of penguin height for each group\nc) Whether each penguin is in group 1 or 2\nd) The fraction of penguins that are in group 1 or 2\ne) The height of each penguin in our data",
+"answer": "b, d"
+},
+{
+"question": "The 'E' in the EM algorithm stands for:\na) Computing the likelihood of hidden variables based on current model parameters\nb) Computing the expected value of model parameters based on most likely assignments of hidden values\nc) Estimating the most likely model parameters, weighted by the hidden variable likelihoods",
+"answer": "a"
+},
+{
+"question": "The 'M' in the EM algorithm stands for:\na) Selecting the most likely values for hidden variables, given the current model parameters\nb) Solving for the most likely model parameters, using the current hidden variable likelihoods\nc) Computing the likelihood of hidden variables based on current model parameters",
+"answer": "b"
+},
+{
+"question": "Which of these are true regarding EM?\na) The EM algorithm is a method for maximum likelihood estimation in the presence of missing or incomplete data.\nb) The EM algorithm guarantees convergence to the global maximum of the likelihood function for any given dataset.\nc) The E-step of the EM algorithm computes the maximum likelihood estimate of the parameters given the observed data.\nd) In the EM algorithm, the likelihood of the observed data increases after each iteration.",
+"answer": "a, d"
+},
+{
+"question": "Which of these PDF estimation methods is parametric or semi-parametric?\na) Gaussian\nb) Mixture of Gaussians\nc) Uniform\nd) Exponential\ne) Normalized Histogram\nf) Kernel Density Estimation",
+"answer": "a, b, d"
+},
+{
+"question": "Which of these PDF estimation methods can be computed in closed form (non-iterative fitting)?\na) Gaussian\nb) Mixture of Gaussians\nc) Uniform\nd) Exponential\ne) Normalized Histogram\nf) Kernel Density Estimation",
+"answer": "a, c, d, e, f"
+},
+{
+"question": "If my salary data became corrupted, such that some values were replaced with '0', which of these statistics would be most affected?\na) 75th percentile\nb) mean\nc) median\nd) max\ne) min",
+"answer": "b, e"
+},
+{
+"question": "Which of these is a good way to check for outliers in multidimensional data?\na) Fit a probabilistic model, such as MoG. The lowest probability points may be outliers.\nb) Threshold each dimension separately based on percentiles.\nc) Compute distance to the mean.\nd) Compress the data, e.g. using PCA or an autoencoder. The data points with the highest reconstruction error may be outliers.\ne) Project the data in a low dimensional space. Points that are far from the others or mixed in with other labels may be outliers.\nf) Compute the 5-nearest neighbors of each data point and the average distance to the points. Outliers may have distances that are much higher.",
+"answer": "a, d, e, f"
+},
+{
+"question": "Which method(s) try to find the model that explains as many points as possible within some threshold?\na) RANSAC\nb) IRLS",
+"answer": "a"
+},
+{
+"question": "Which method(s) reduce impact of outliers by reweighting points according to how well the model fits them?\na) RANSAC\nb) IRLS\nc) Least squares fit\nd) Robust least squares",
+"answer": "b, d"
+},
+{
+"question": "Which method(s) are best at handling lots of outliers if the noise level is not too high?\na) RANSAC\nb) Least squares\nc) IRLS\nd) Robust least squares",
+"answer": "a"
+},
+{
+"question": "Which method(s) are best at handling a mix of some outliers and moderate noise?\na) RANSAC\nb) Least squares\nc) IRLS\nd) Robust least squares",
+"answer": "c, d"
+},
+{
+"question": "Which of these are direct evidence that the 'bias' factor of the error is high?\na) The test error is high, but the training error is much lower\nb) The test error is high, and the training error is almost as high\nc) The model doesn't have very many parameters\nd) I have a lot of data",
+"answer": "b"
+},
+{
+"question": "Which of these are direct evidence that the 'variance' factor of the error is high?\na) The test error is high, but the training error is much lower\nb) The test error is high, and the training error is almost as high\nc) The model doesn't have very many parameters\nd) I have a lot of data",
+"answer": "a"
+},
+{
+"question": "What are ways to reduce model bias?\na) Use a more complex model\nb) More training examples\nc) Simpler model\nd) Decrease weight/parameter regularization",
+"answer": "a, d"
+},
+{
+"question": "What are ways to reduce model variance?\na) More complex model\nb) More training examples\nc) Simpler model\nd) Add weight/parameter regularization",
+"answer": "b, c, d"
+},
+{
+"question": "Which of these statements indicate a bug (i.e. must be an experimental error) or wrong thinking?\na) My training error is much higher than my test error\nb) I made my classifier more complicated, but my test error went up\nc) Every time I increase the size of my training set, my training error goes up\nd) My nearest neighbor classifier is outperforming SVM\ne) My training error has reached zero, so I must be overfitting\nf) As my tree gets deeper, my validation error starts going up, so it seems to be overfitting\ng) Training error gives a useful indication of whether one classifier is better than another\nh) When I increase the size of my training set, my test error goes down\ni) To be more data efficient, it's reasonable to set a regularization weight based on the performance of the training set\nj) It's not useful to compare training and test performance -- only the test performance matters",
+"answer": "a, e, j"
+},
+{
+"question": "If I flip a fair coin (50/50 chance of heads or tails), what is the entropy of the outcome, measured in bits?\na) 0\nb) 0.5\nc) 1\nd) -1",
+"answer": "c"
+},
+{
+"question": "What does H(X|Y), the conditional entropy of X given Y, measure?\na) The uncertainty of X given a particular value of Y\nb) How much information Y provides about X\nc) The uncertainty of X that is expected to remain if I know the value of Y\nd) None of these",
+"answer": "c"
+},
+{
+"question": "What is the regression tree minimizing?\na) Variance of X\nb) Variance of Y\nc) Conditional Variance of X given the tree model\nd) Conditional Variance of Y given X and the tree model",
+"answer": "d"
+},
+{
+"question": "Which of these classifiers has a decision function of the form score = w^Tx + b?\na) 1-NN\nb) Linear logistic regression\nc) Linear SVM\nd) SVM with RBF Kernel\ne) Naive Bayes Classifier on Binary Features\nf) Decision Tree",
+"answer": "b, c, e"
+},
+{
+"question": "Which of these is most easily adapted to new training examples?\na) 1-NN\nb) Linear logistic regression\nc) Linear SVM\nd) SVM with RBF Kernel\ne) Naive Bayes Classifier on Binary Features\nf) Decision Tree",
+"answer": "a"
+},
+{
+"question": "Which of these is always able to achieve minimal error on the training set?\na) 1-NN\nb) Linear logistic regression\nc) Linear SVM\nd) SVM with RBF Kernel\ne) Naive Bayes Classifier on Binary Features\nf) Decision Tree",
+"answer": "a, f"
+},
+{
+"question": "Which of these is able to give a globally optimal solution to its objective function?\na) Linear logistic regression\nb) Linear SVM\nc) SVM with RBF Kernel\nd) Naive Bayes Classifier on Binary Features\ne) Decision Tree",
+"answer": "a, b, c, d"
+},
+{
+"question": "Estimate P(x=0|y=0) using unweighted samples (based on the table W, X, Y)\na) 3/7\nb) 4/7\nc) 3/5\nd) 4/5\ne) 1/2",
+"answer": "d"
+},
+{
+"question": "Estimate P(x=0|y=0) using samples weighted by w\na) 3/7\nb) 4/7\nc) 3/5\nd) 4/5\ne) 1/2",
+"answer": "c"
+},
+{
+"question": "Which of these has low bias but high variance?\na) Decision tree with high depth\nb) Decision tree with low depth",
+"answer": "a"
+},
+{
+"question": "Why does random forests work better than training one decision tree?\na) Average predictions from many large trees - large trees have low bias, and averaging reduces the variance\nb) Average predictions from many small trees -- small trees have low variance, and averaging reduces the bias\nc) Incrementally train large trees...\nd) Incrementally train small trees...",
+"answer": "a"
+},
+{
+"question": "Why does boosted decision trees work better than training one decision tree?\na) Average predictions from many large trees...\nb) Average predictions from many small trees...\nc) Incrementally train large trees...\nd) Incrementally train small trees to fix the mistakes of previously learned trees... small trees have low variance, and focusing on mistakes reduces bias",
+"answer": "d"
+},
+{
+"question": "Select the true statements (regarding SGD)\na) Unlike SVM, linear logistic regression loss always adds a non-zero penalty over all training data points.\nb) The PEGASUS algorithm computes the gradient using only one sample... increasing efficiency.\nc) PEGASUS has the disadvantage that the larger the training dataset, the slower it can be optimized...",
+"answer": "a, b"
+},
+{
+"question": "Which of these algorithms' objective functions have a single local optimum?\na) Logistic regression\nb) Linear regression\nc) Kernelized SVM\nd) EM algorithm\ne) K-means",
+"answer": "a, b, c"
+},
+{
+"question": "Select the true statements (regarding SGD vs GD)\na) Gradient descent takes a step toward minimizing a loss based on the loss gradient...\nb) Stochastic Gradient Descent (SGD) computes the gradient using a subset...\nc) Full-batch gradient descent (GD) guarantees an improvement in the objective at every step\nd) GD offers more stable progression toward the objective than mini-batch SGD\ne) SGD is able to reach better solutions for linear models than GD\nf) SGD optimization tends to be faster than GD\ng) SGD is better at escaping local minima than GD\nh) Understanding SGD is critical...",
+"answer": "b, g"
+},
+{
+"question": "True or False: Non-linear activations are an essential part of MLPs because a sequence of purely linear operations reduces to a single linear operation.",
+"answer": "True"
+},
+{
+"question": "Why might using sigmoid activation in a many-layer network cause optimization difficulties?\na) Sigmoids can only output values between 0 and 1\nb) The gradient of the sigmoid is not defined everywhere\nc) With a long chain of gradients that are less than 1, the gradient becomes vanishingly small.",
+"answer": "c"
+},
+{
+"question": "Why might use of ReLU activation functions lead to better optimization?\na) The gradient is 1 for positive inputs, so even with several layers you can have a large gradient\nb) The ReLU has the same form as the hinge loss\nc) The ReLU activation is efficient to compute",
+"answer": "a"
+},
+{
+"question": "What terms does the error gradient for w1 (dE/dw1) include?\na) x1\nb) x2\nc) w6*w0\nd) w9*w0\ne) (out-y)",
+"answer": "a, c, e"
+},
+{
+"question": "Which of these are true about convolutional networks (CNNs)?\na) CNNs are only applicable to images and other data with 2D structure\nb) CNNs encode local patterns in a translation-invariant way\nc) CNNs use pooling to extend the 'receptive field' of their filters\nd) Convolutional layers require more parameters than fully connected layers",
+"answer": "b, c"
+},
+{
+"question": "Why were neural networks less effective than other approaches for many years?\na) Deep networks were difficult to optimize due to the vanishing gradient problem\nb) Most datasets were not big enough to properly fit / benefit from deep networks\nc) The loss functions for existing benchmarks were not suited to deep learning\nd) Deep learning requires much more computation than most other methods to be effective",
+"answer": "a, b, d"
+},
+{
+"question": "Which of these made many-layer networks easier to optimize?\na) Sigmoid activation\nb) ReLU activation\nc) Bottleneck layers\nd) Convolutional layers\ne) Skip connections\nf) Batch normalization",
+"answer": "b, e"
+},
+{
+"question": "Which of these are components of the Adam optimizer?\na) Compute the gradient of the weights wrt the loss\nb) Momentum encourages large changes in directions with consistent gradient\nc) Normalize each weight's update by the total magnitude of its past gradients\nd) Normalize each weight's update by the moving average magnitude of its past gradients",
+"answer": "a, b, d"
+},
+{
+"question": "Which of these are important parameters to set up before training a deep model?\na) Model specification\nb) Number of epochs\nc) Batch size\nd) Target validation error rate\ne) Learning rate/schedule\nf) Loss function(s)",
+"answer": "a, e, f"
+},
+{
+"question": "In training, which of these two steps need to switch their order in the incorrect list (Predict, Zero gradients, Compute gradients)?\na) Predict\nb) Zero the gradients",
+"answer": "a, b (Zero gradients should come before accumulating new gradients)"
+},
+{
+"question": "What is the purpose of data augmentation?\na) To reduce variance, synthetically expand the training set by transforming original inputs in a way that does not change their target labels\nb) To reduce bias...\nc) To reduce computation...\nd) To reduce bias, augment...",
+"answer": "a"
+},
+{
+"question": "I've trained a classifier on ImageNet and want to adapt it to classify models of cars (5 examples each of 100 models). What is a good strategy?\na) Retrain the model from scratch\nb) Fine-tune the model\nc) Freeze the encoder and train a linear classification layer (linear probe)\nd) Use the original ImageNet classifier",
+"answer": "c"
+},
+{
+"question": "I've trained a classifier on ImageNet and want to adapt it to classify models of cars (100 examples each of 100 models). What is a good strategy?\na) Retrain the model from scratch\nb) Fine-tune the model\nc) Freeze the encoder and train a linear classification layer\nd) Use the original ImageNet classifier",
+"answer": "b"
+},
+{
+"question": "If I am fine-tuning a model using SGD with momentum, what is the most sensitive parameter?\na) Batch size\nb) Number of epochs\nc) Learning rate\nd) Type of data augmentation",
+"answer": "c"
+},
+{
+"question": "Which of these tokenizations can create a unique representation for any possible character string?\na) Character\nb) Subword\nc) Word",
+"answer": "a"
+},
+{
+"question": "If training a subword tokenizer from this text sequence, which two characters would be merged first? ('La la la...')\na) La\nb) si\nc) la\nd) _l (space l)\ne) none",
+"answer": "c, d"
+},
+{
+"question": "Select which of these statements are true (Tokenization)\na) In subword tokenization, the subword tokens are formed based on statistical analysis of a text corpus\nb) A disadvantage of word tokenizers...\nc) The meaning of a word...",
+"answer": "a"
+},
+{
+"question": "Select which layer type(s) each statement applies to (Attention, Convolution, Linear)\na) Output depends on order of inputs\nb) Uses the same weights to compose features at different positions\nc) Most of the compute is in linear operations\nd) Assumes a particular neighborhood structure",
+"answer": "a: [Conv, Linear], b: [Attn, Conv], c: [Attn, Conv, Linear], d: [Conv]"
+},
+{
+"question": "What is BERT Pre-trained to do?\na) Predict the next word\nb) Masked language modeling, filling in missing words\nc) Predict whether one sentence follows another\nd) Translate English to French",
+"answer": "b, c"
+},
+{
+"question": "What do the ViT and BERT have in common?\na) Tokenized input\nb) Add positional encoding\nc) Add sentence embedding\nd) Encoder is a stack of transformer blocks\ne) Decoder is a simple linear layer or MLP\nf) CLS token is used for categorical prediction",
+"answer": "a, b, d, e, f"
+},
+{
+"question": "What is the training task of GPT3?\na) Fill in the blank\nb) Sentence classification\nc) Predict the next token\nd) Suite of benchmark tasks",
+"answer": "c"
+},
+{
+"question": "Which of these applies to both GPT3 and BERT?\na) Network architecture based on transformers\nb) Pretraining by next token prediction\nc) Adapt to target tasks by fine-tuning",
+"answer": "a"
+},
+{
+"question": "What is CLIP trained to do?\na) Generate the words of a caption\nb) Make correct image-text pairs have much higher similarity than incorrect image-text pairs\nc) Fill in the missing words of a caption\nd) Generate an image given a caption",
+"answer": "b"
+},
+{
+"question": "How can you use CLIP to solve a new task without losing CLIP's general ability to match image to text?\na) Train a linear classifier that operates on the CLIP image encoding\nb) Apply CLIP 'zero shot' by encoding the text labels of the new task\nc) Fine-tune the CLIP image encoder",
+"answer": "a, b"
+},
+{
+"question": "Which of these are linear classifiers? (linear in the input features)\na) Nearest neighbor\nb) Linear logistic regression\nc) Linear SVM\nd) RBF SVM\ne) Naive Bayes with Binary Features\nf) Decision Tree\ng) Random Forest\nh) Boosted Decision Tree\ni) Perceptron\nj) MLP\nk) Convolutional Network\nl) Transformer",
+"answer": "b, c, e, i"
+},
+{
+"question": "For which of these models will different initializations likely lead to substantially different parameters?\na) Nearest neighbor classifier\nb) Linear regression\nc) EM algorithm\nd) K-mean clustering\ne) MLP\nf) RBF SVM\ng) Transformer",
+"answer": "c, d, e, g"
+},
+{
+"question": "Which of these can reduce model bias (in the bias-variance sense)?\na) Average predictions across multiple trained models\nb) Boosting\nc) Increase regularization parameter\nd) Decrease regularization parameter\ne) Increase classifier complexity (e.g. deeper tree)\nf) Decrease classifier complexity (e.g. shallower tree)\ng) Add training data\nh) Use a faster computer",
+"answer": "b, d, e"
+},
+{
+"question": "Which of these can reduce model variance (in the bias-variance sense)?\na) Average predictions across multiple models\nb) Boosting\nc) Increase regularization parameter\nd) Decrease regularization parameter\ne) Increase classifier complexity (deeper tree)\nf) Decrease classifier complexity (shallower tree)\ng) Add training data\nh) Use a faster computer",
+"answer": "a, c, f, g"
+},
+{
+"question": "Which of these are true for transformer blocks?\na) Includes weight projection to map from input to key, query, value vectors\nb) Includes attention, replacing token values by a similarity-weighted average\nc) Includes MLP that operates on each token by itself\nd) Includes a convolutional layer with a skip connection\ne) If you process tokens in a different order, the output will change\nf) Is an effective way to model multiple modalities",
+"answer": "a, b, c, f"
+},
+{
+"question": "What is the main reason that the sigmoid activation makes many-layer networks difficult to optimize?\na) Small range of outputs from -1 to 1\nb) Gradient is less than 1 everywhere and maximized only when input is 0\nc) Optimization problems due to a discontinuous function\nd) Non-linearities make the optimization non-convex",
+"answer": "b"
+},
+{
+"question": "Which of these changes improve the flow of gradients from the loss to the input?\na) Replacing MLP with convolutional layer\nb) Add residual/skip connection\nc) Layer normalization\nd) Replace sigmoid with ReLU\ne) Add a bottleneck\nf) Replace MLP with attention",
+"answer": "b, d"
+},
+{
+"question": "Which of these statements are valid ways to adapt a pretrained network to a new task?\na) Randomize weights and retrain\nb) Extract features and training a linear classifier on those features\nc) Replace and retrain classification layer or decoder while freezing other weights\nd) Replace decoder and retrain all weights with a high learning rate",
+"answer": "b, c"
+},
+{
+"question": "Which of these are part of the 'bias network effect'?\na) Machine learns from data produced by humans\nb) Developers insert malicious code\nc) Machine makes judgments based on what it learns\nd) Humans trust those judgments and act accordingly, producing new data",
+"answer": "a, d"
+},
+{
+"question": "Which of these are likely to result in a biased admissions algorithm?\na) The algorithm is trained to predict past accept/reject decisions based on the application\nb) The model is trained to have difficulty predicting protected attributes\nc) The model is trained on data that has been carefully 'de-biased'",
+"answer": "a"
+},
+{
+"question": "What are differences between time series problems and other regression problems?\na) Time series often are unbounded\nb) Time series often considers trends and cycles at multiple scales\nc) Deep networks tend to be more applicable to time series",
+"answer": "b"
+},
+{
+"question": "Which of these are used for prediction in SARIMA but not ARIMA?\na) Local differences\nb) Periodic long range differences\nc) Forecasting error\nd) Convolution",
+"answer": "b"
+},
+{
+"question": "Which of these tasks is most appropriate for reinforcement learning?\na) Predict the value of a stock in the next day\nb) Predict whether a given trader will buy, sell, or hold\nc) Learn whether to buy, sell, or hold a stock in order to maximize profit",
+"answer": "c"
+},
+{
+"question": "Which of these tasks is most appropriate for reinforcement learning? (Second Q)\na) Classifying faces\nb) Clustering documents\nc) Making a robot walk\nd) Estimating the risk of disease progression",
+"answer": "c"
+},
+{
+"question": "GPT learns to predict the most likely next word. Which RL approach is this most related to?\na) Behavioral cloning\nb) Q-Learning\nc) Policy learning\nd) World model",
+"answer": "a"
+},
+{
+"question": "If you wanted to train a general purpose robot that can learn to do many tasks, which approach would you choose?\na) Behavioral cloning\nb) Q-Learning\nc) Policy learning\nd) World model",
+"answer": "d"
+},
+{
+"question": "Predict the sale price ($) of a house given location, square footage... Training data ~50K samples. Best model?\na) Nearest neighbor classifier\nb) Naive Bayes Classifier\nc) Logistic regression\nd) Linear regression\ne) Random forest regressor\nf) Random forest classifier\ng) Convolutional network",
+"answer": "e"
+},
+{
+"question": "Identify the plant type from a photo of a seed on a white background. You have 100 examples per plant type. Best model?\na) Nearest neighbor classifier\nb) Naive Bayes Classifier\nc) Logistic regression\nd) Random forest classifier\ne) Convolutional network, trained from scratch\nf) Convolutional network, fine-tuned based on an ImageNet pretrained model",
+"answer": "f"
+},
+{
+"question": "Given the text of a review, assign a score from 1 to 5. You have 1M training samples. Best model?\na) Use Naive Bayes Classifier on word count\nb) Use GPT-4\nc) Fine-tune a BERT model\nd) Boosted decision tree on word count",
+"answer": "c"
+},
+{
+"question": "Automatically identify which students are present from a photo of the classroom. Training data is one headshot per student. Best model?\na) Use nearest neighbor on an ImageNet pretrained model\nb) Train a face classifier on Labeled Faces in the Wild (LFW), and then use nearest neighbor on the trained encoder features\nc) Train a face classifier on LFW and then fine-tune on the training set\nd) Train a MLP from scratch\ne) Use PCA on the patch of face pixels and then nearest neighbor",
+"answer": "b"
+},
+{
+"question": "Problem that involves a combination of image and text analysis, with lots of training data available. Best model?\na) Nearest neighbor\nb) Logistic regression\nc) Convolutional network model\nd) Transformer model",
+"answer": "d"
+},
+{
+"question": "Image classification problem with 10 classes and ~10 examples per class. Best model?\na) Deep network, trained from scratch\nb) Deep network with pre-trained model and linear classifier ('linear probe') on features\nc) Fine-tuned deep network",
+"answer": "b"
+}
+]
