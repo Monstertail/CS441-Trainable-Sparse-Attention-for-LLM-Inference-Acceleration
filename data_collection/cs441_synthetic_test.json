@@ -1,0 +1,338 @@
+[
+  {
+    "question": "Which ensemble method can be easily parallelized (trained simultaneously)?\na) Boosting (e.g., AdaBoost, XGBoost)\nb) Bagging (e.g., Random Forest)\nc) RNNs\nd) Markov Chains",
+    "answer": "b"
+  },
+  {
+    "question": "EM is guaranteed to:\na) Converge to the global maximum likelihood.\nb) Converge to a local maximum (or saddle point) of the likelihood function.\nc) Find the true number of latent components.\nd) Execute faster than K-Means.",
+    "answer": "b"
+  },
+  {
+    "question": "What is 'Experience Replay' in Deep Q-Networks (DQN)?\na) Replaying the game for the user to watch.\nb) Storing past transitions (s, a, r, s') in a buffer and sampling random batches for training to break correlation.\nc) Using a simulator to generate infinite data.\nd) Repeating the last action.",
+    "answer": "b"
+  },
+  {
+    "question": "In dimensionality reduction, what is 'Manifold Learning'?\na) Learning linear projections of data.\nb) Learning the non-linear low-dimensional structure embedded in high-dimensional space.\nc) Learning to classify images of manifolds.\nd) Compressing data using Huffman coding.",
+    "answer": "b"
+  },
+  {
+    "question": "In a confusion matrix for binary classification, what is 'Recall' (Sensitivity)?\na) TP / (TP + FP)\nb) TP / (TP + FN)\nc) TN / (TN + FP)\nd) (TP + TN) / Total",
+    "answer": "b"
+  },
+  {
+    "question": "What role does the 'Learning Rate' play in Gradient Descent?\na) It determines the direction of the step.\nb) It determines the size of the step taken towards the minimum.\nc) It initializes the weights.\nd) It defines the loss function.",
+    "answer": "b"
+  },
+  {
+    "question": "Which regularization technique penalizes the weights based on the sum of their absolute values?\na) L2 Regularization (Ridge)\nb) L1 Regularization (Lasso)\nc) Dropout\nd) Data Augmentation",
+    "answer": "b"
+  },
+  {
+    "question": "In the context of 'Pre-training' and 'Fine-tuning', what typically happens during Fine-tuning?\na) Weights are initialized randomly and trained on a massive dataset.\nb) Weights from a pre-trained model are slightly adjusted using a smaller, task-specific dataset.\nc) The model architecture is completely changed.\nd) The learning rate is set to be very high.",
+    "answer": "b"
+  },
+  {
+    "question": "Gaussian Naïve Bayes assumes that:\na) Continuous features follow a normal distribution within each class.\nb) All features are binary.\nc) The covariance matrix of features is the identity matrix.\nd) There are no latent variables.",
+    "answer": "a"
+  },
+  {
+    "question": "When building a Classification Tree, Gini Impurity measures:\na) The reduction in variance.\nb) The probability of misclassifying a randomly chosen element if it were labeled according to the distribution of labels in the node.\nc) The information gained by the split.\nd) The depth of the tree.",
+    "answer": "b"
+  },
+  {
+    "question": "What does the CLIP (Contrastive Language-Image Pre-training) model learn to do?\na) Generate images from noise.\nb) Predict the next word in a caption.\nc) Maximize the similarity between correct image-text pairs and minimize it for incorrect pairs.\nd) Segment objects in an image.",
+    "answer": "c"
+  },
+  {
+    "question": "The Interquartile Range (IQR) method defines an outlier as a point falling:\na) Below Q1 - 1.5*IQR or above Q3 + 1.5*IQR.\nb) More than 3 standard deviations from the mean.\nc) Outside the 99% confidence interval.\nd) In the bottom 5% of probability density.",
+    "answer": "a"
+  },
+  {
+    "question": "What is 'Dropout' behavior during the inference (testing) phase?\na) Neurons are randomly dropped just like in training.\nb) No neurons are dropped, but the weights are typically scaled down by the dropout rate (or inputs scaled up during training).\nc) All weights are set to zero.\nd) The network is retrained.",
+    "answer": "b"
+  },
+  {
+    "question": "What distinguishes 'Off-Policy' learning (e.g., Q-Learning) from 'On-Policy' learning (e.g., SARSA)?\na) Off-Policy requires a model of the environment.\nb) Off-Policy learns the value of the optimal policy while following a different (exploratory) behavior policy.\nc) Off-Policy can only be used for continuous action spaces.\nd) Off-Policy does not use a reward function.",
+    "answer": "b"
+  },
+  {
+    "question": "Which of the following is a 'Lazy Learner'?\na) Neural Network\nb) K-Nearest Neighbors\nc) Decision Tree\nd) Naïve Bayes",
+    "answer": "b"
+  },
+  {
+    "question": "Which loss function is robust to outliers in regression tasks?\na) Mean Squared Error (L2 loss)\nb) Mean Absolute Error (L1 loss) or Huber Loss\nc) Cross-Entropy Loss\nd) Log-Cosh Loss",
+    "answer": "b"
+  },
+  {
+    "question": "Random Forests reduce the variance of a single Decision Tree by:\na) Boosting the weights of misclassified samples.\nb) Averaging predictions from multiple trees trained on bootstrapped data and random feature subsets.\nc) Using a single very deep tree.\nd) Pruning the trees aggressively.",
+    "answer": "b"
+  },
+  {
+    "question": "What is 'Batch Normalization' used for?\na) To normalize the input data only.\nb) To stabilize learning by normalizing layer inputs within a mini-batch.\nc) To reduce the number of parameters in the network.\nd) To perform data augmentation.",
+    "answer": "b"
+  },
+  {
+    "question": "What is 'Adversarial Training'?\na) Training two models to compete against each other (like in GANs).\nb) Training a model on examples that have been intentionally perturbed to cause misclassification, to improve robustness.\nc) Training a model with a very high learning rate.\nd) Training a model without any labels.",
+    "answer": "b"
+  },
+  {
+    "question": "In the context of robust estimation, what is the 'Breakdown Point'?\na) The point where the algorithm stops converging.\nb) The proportion of outliers an estimator can handle before giving an incorrect result.\nc) The maximum learning rate allowed.\nd) The minimum number of samples required.",
+    "answer": "b"
+  },
+  {
+    "question": "In a 1D Convolution for audio, what does the 'Kernel Size' represent?\na) The number of channels.\nb) The duration of the audio segment (window) the filter looks at.\nc) The sampling rate.\nd) The volume of the audio.",
+    "answer": "b"
+  },
+  {
+    "question": "In the bias-variance tradeoff, a model that is too simple (e.g., linear model on complex data) typically suffers from:\na) High Bias and Low Variance.\nb) Low Bias and High Variance.\nc) Low Bias and Low Variance.\nd) High Bias and High Variance.",
+    "answer": "a"
+  },
+  {
+    "question": "In audio signal processing, what is the 'Nyquist Frequency'?\na) The sampling rate.\nb) Half the sampling rate, representing the highest frequency that can be correctly represented without aliasing.\nc) The lowest frequency in the signal.\nd) The bit rate.",
+    "answer": "b"
+  },
+  {
+    "question": "What is 'Federated Learning'?\na) Training a single model on a centralized server with all data.\nb) Training a model across multiple decentralized devices holding local data samples, without exchanging them.\nc) Combining predictions from different models.\nd) Learning from labeled and unlabeled data.",
+    "answer": "b"
+  },
+  {
+    "question": "In the Expectation-Maximization (EM) algorithm, what happens during the E-step?\na) Model parameters are updated to maximize likelihood.\nb) The expected values of the latent variables are computed given current parameters.\nc) The number of clusters is optimized.\nd) The likelihood function is set to zero.",
+    "answer": "b"
+  },
+  {
+    "question": "Which of the following is an example of 'Self-Supervised Learning'?\na) Training a model to predict the next word in a sentence using the text itself as labels.\nb) Training a model with manually annotated labels.\nc) Clustering data without labels.\nd) Using a genetic algorithm.",
+    "answer": "a"
+  },
+  {
+    "question": "In Q-Learning, what does the Q-value $Q(s, a)$ represent?\na) The probability of moving to state $s$ via action $a$.\nb) The immediate reward received after taking action $a$ in state $s$.\nc) The expected cumulative reward of taking action $a$ in state $s$ and following the optimal policy thereafter.\nd) The value of state $s$ regardless of the action taken.",
+    "answer": "c"
+  },
+  {
+    "question": "Which loss function is minimized in standard Logistic Regression?\na) Mean Squared Error\nb) Hinge Loss\nc) Log Loss (Binary Cross-Entropy)\nd) Absolute Error",
+    "answer": "c"
+  },
+  {
+    "question": "Which method detects outliers by isolating observations using random binary splits?\na) Z-Score\nb) DBSCAN\nc) Isolation Forest\nd) Local Outlier Factor (LOF)",
+    "answer": "c"
+  },
+  {
+    "question": "In Stochastic Gradient Descent (SGD), why does the loss function sometimes fluctuate or increase during training?\na) Because the learning rate is too low.\nb) Because each update is based on a single sample (or mini-batch) which is a noisy estimate of the true gradient.\nc) Because the model is overfitting.\nd) Because the data is not normalized.",
+    "answer": "b"
+  },
+  {
+    "question": "In the context of Word Embeddings (e.g., Word2Vec), 'Cosine Similarity' is used to measure:\na) The frequency of word occurrence.\nb) The semantic similarity between two words based on the angle between their vectors.\nc) The length of the word vectors.\nd) The grammatical correctness of a sentence.",
+    "answer": "b"
+  },
+  {
+    "question": "In Deep Learning, what is the 'chain rule' used for?\na) Forward propagation of inputs.\nb) Calculating the gradient of the loss function with respect to weights during backpropagation.\nc) Initializing the weights.\nd) Normalizing the data.",
+    "answer": "b"
+  },
+  {
+    "question": "What is the computational complexity of Self-Attention in a Transformer with respect to the sequence length N?\na) O(N)\nb) O(N log N)\nc) O(N^2)\nd) O(1)",
+    "answer": "c"
+  },
+  {
+    "question": "The 'Kernel Trick' allows SVMs to:\na) Compute the dot product in a high-dimensional feature space without explicitly transforming the data.\nb) Ignore outliers effectively.\nc) Reduce the training time to linear complexity.\nd) Select the most important features automatically.",
+    "answer": "a"
+  },
+  {
+    "question": "In K-Fold Cross-Validation, if K is set equal to the number of training samples (N), what is this method called?\na) Stratified Cross-Validation\nb) Leave-One-Out Cross-Validation (LOOCV)\nc) Hold-out Validation\nd) Monte Carlo Cross-Validation",
+    "answer": "b"
+  },
+  {
+    "question": "Why is feature scaling (normalization/standardization) critical for K-Nearest Neighbors (K-NN)?\na) To ensure the algorithm converges.\nb) To prevent features with large scales from dominating the distance calculation.\nc) To reduce the number of dimensions.\nd) To handle missing values.",
+    "answer": "b"
+  },
+  {
+    "question": "In Kernel Density Estimation (KDE), what is the effect of choosing a bandwidth that is too small?\na) The estimate becomes overly smooth (high bias).\nb) The estimate becomes spiky and overfits the data (high variance).\nc) The estimate converges to a Gaussian distribution.\nd) The computational cost decreases.",
+    "answer": "b"
+  },
+  {
+    "question": "In the AdaBoost algorithm, how are the weights of training samples updated after each iteration?\na) Weights of misclassified samples are increased.\nb) Weights of correctly classified samples are increased.\nc) All weights are kept constant.\nd) Weights are randomly reassigned.",
+    "answer": "a"
+  },
+  {
+    "question": "What is the primary operation in a Convolutional Neural Network (CNN) layer?\na) Matrix multiplication with a dense weight matrix.\nb) Computing the dot product between a filter (kernel) and local patches of the input.\nc) finding the global maximum of the image.\nd) Flattening the input into a vector.",
+    "answer": "b"
+  },
+  {
+    "question": "What is the 'Hinge Loss' function used for?\na) Linear Regression\nb) Support Vector Machines (SVM)\nc) Logistic Regression\nd) K-Means Clustering",
+    "answer": "b"
+  },
+  {
+    "question": "What is 'Reward Shaping'?\na) Modifying the reward function to provide more frequent feedback to guide the agent, speeding up learning.\nb) Removing the reward function entirely.\nc) Randomizing rewards to encourage exploration.\nd) Ensuring the total reward is always zero.",
+    "answer": "a"
+  },
+  {
+    "question": "What is the 'Credit Assignment Problem' in RL?\na) Determining how much to pay the cloud provider.\nb) Determining which past action is responsible for the current reward.\nc) Assigning weights to the neural network.\nd) Balancing the dataset.",
+    "answer": "b"
+  },
+  {
+    "question": "What problem does L2 regularization (Ridge) primarily address in linear regression?\na) High bias.\nb) Multicollinearity and overfitting.\nc) Underfitting.\nd) Slow convergence rate.",
+    "answer": "b"
+  },
+  {
+    "question": "In Principal Component Analysis (PCA), the principal components are eigenvectors of which matrix?\na) The correlation matrix of the features\nb) The covariance matrix of the features\nc) The adjacency matrix\nd) The identity matrix",
+    "answer": "b"
+  },
+  {
+    "question": "What is the main limitation of a single Perceptron?\na) It can only solve linearly separable problems (cannot solve XOR).\nb) It is too slow to train.\nc) It requires too much memory.\nd) It overfits easily.",
+    "answer": "a"
+  },
+  {
+    "question": "In a Decision Tree, what is 'Pre-pruning'?\na) Removing branches after the full tree is built.\nb) Stopping the tree growth early based on criteria like max depth or min samples per split.\nc) Converting the tree to a set of rules.\nd) Randomly selecting features.",
+    "answer": "b"
+  },
+  {
+    "question": "Using an RBF (Radial Basis Function) kernel in SVM, what happens if the Gamma parameter is set too high?\na) The decision boundary becomes linear.\nb) The model overfits, creating \"islands\" around individual data points.\nc) The model underfits and becomes too smooth.\nd) The margin becomes infinitely wide.",
+    "answer": "b"
+  },
+  {
+    "question": "What is the 'Exploding Gradient' problem?\na) Gradients become zero.\nb) Gradients accumulate and become very large, causing large weight updates and instability.\nc) The loss function decreases too fast.\nd) The model overfits immediately.",
+    "answer": "b"
+  },
+  {
+    "question": "In a Gaussian Mixture Model (GMM), if we constrain the covariance matrices to be diagonal, what geometric shape do the clusters take?\na) Perfect spheres.\nb) Axis-aligned ellipses.\nc) Rotated ellipses.\nd) Irregular non-convex shapes.",
+    "answer": "b"
+  },
+  {
+    "question": "What is a common technique to prevent overfitting in Decision Trees?\na) Increasing the maximum depth.\nb) Pruning.\nc) Setting a lower minimum samples per leaf.\nd) Using more features.",
+    "answer": "b"
+  },
+  {
+    "question": "What is 'Out-of-Bag' (OOB) error in Random Forests used for?\na) To train the individual trees.\nb) To estimate the generalization error without needing a separate validation set.\nc) To decide when to stop splitting nodes.\nd) To calculate feature importance.",
+    "answer": "b"
+  },
+  {
+    "question": "In a Decision Tree, which metric is commonly used to choose the best split at a node?\na) Euclidean distance\nb) Information Gain (Entropy)\nc) Gradient Descent\nd) Cosine Similarity",
+    "answer": "b"
+  },
+  {
+    "question": "Which ensemble method trains predictors sequentially, where each new predictor corrects the errors of its predecessor?\na) Bagging\nb) Random Forest\nc) Boosting\nd) Stacking",
+    "answer": "c"
+  },
+  {
+    "question": "For a multi-class classification problem with K classes, the 'One-vs-Rest' strategy involves training how many binary classifiers?\na) 1\nb) K\nc) K * (K - 1) / 2\nd) K^2",
+    "answer": "b"
+  },
+  {
+    "question": "In Graph Neural Networks (GNNs), what is 'Message Passing'?\na) Sending emails between nodes.\nb) Aggregating information from neighbor nodes to update the state of a node.\nc) Removing edges from the graph.\nd) Converting the graph to an image.",
+    "answer": "b"
+  },
+  {
+    "question": "In Reinforcement Learning, what is 'Epsilon' in the Epsilon-Greedy strategy?\na) The learning rate.\nb) The discount factor.\nc) The probability of choosing a random exploratory action.\nd) The reward value.",
+    "answer": "c"
+  },
+  {
+    "question": "What does 'Positional Encoding' add to a Transformer model?\na) Information about the relative or absolute position of tokens in the sequence.\nb) Part-of-speech tags for every word.\nc) The sentiment of the sentence.\nd) Syntax tree structure.",
+    "answer": "a"
+  },
+  {
+    "question": "How does a Vision Transformer (ViT) process an image?\na) It uses standard 3x3 convolution filters.\nb) It splits the image into fixed-size patches and linearly embeds them as a sequence of tokens.\nc) It converts the image into a 1D audio signal.\nd) It uses HOG features.",
+    "answer": "b"
+  },
+  {
+    "question": "What is 'Catastrophic Forgetting' in neural networks?\na) The model forgets the training data after saving.\nb) The tendency of a network to abruptly forget previously learned information upon learning new information.\nc) The loss of gradients during backpropagation.\nd) The failure to initialize weights correctly.",
+    "answer": "b"
+  },
+  {
+    "question": "What is the 'Scree Plot' used for in PCA?\na) To visualize the data distribution.\nb) To determine the optimal number of principal components to keep by looking for an 'elbow'.\nc) To plot the residuals.\nd) To check for outliers.",
+    "answer": "b"
+  },
+  {
+    "question": "In Bayesian Networks, a node is conditionally independent of its non-descendants given its:\na) Children\nb) Parents\nc) Markov Blanket\nd) Ancestors",
+    "answer": "b"
+  },
+  {
+    "question": "In Principal Component Analysis (PCA), what does the magnitude of an eigenvalue corresponding to a principal component represent?\na) The amount of variance explained by that component.\nb) The correlation between the component and the original features.\nc) The error reconstruction rate.\nd) The number of dimensions to keep.",
+    "answer": "a"
+  },
+  {
+    "question": "Which distance metric implies that all feature dimensions are equally important and independent?\na) Mahalanobis distance\nb) Manhattan distance (L1)\nc) Euclidean distance (L2)\nd) Cosine similarity",
+    "answer": "c"
+  },
+  {
+    "question": "In K-Means++, how are the initial cluster centers chosen?\na) Randomly from the data points with uniform probability.\nb) The first center is random; subsequent centers are chosen with probability proportional to the squared distance from the closest existing center.\nc) By running Hierarchical clustering first.\nd) By choosing the points with the highest density.",
+    "answer": "b"
+  },
+  {
+    "question": "In BERT (Bidirectional Encoder Representations from Transformers), what does the 'Bidirectional' part mean?\na) It processes text from left-to-right and right-to-left separately.\nb) The attention mechanism can attend to tokens from both the left and right context simultaneously in all layers.\nc) It can translate between two languages.\nd) It has two output layers.",
+    "answer": "b"
+  },
+  {
+    "question": "What is a 'Model Card' in the context of responsible AI?\na) A hardware component for running models.\nb) A document that provides details about a model's intended use, limitations, training data, and performance metrics.\nc) A license key for software.\nd) A visualization of the neural network architecture.",
+    "answer": "b"
+  },
+  {
+    "question": "In the Expectation-Maximization (EM) algorithm for Gaussian Mixture Models, what does the 'M-step' update?\na) The cluster assignment probabilities (responsibilities).\nb) The parameters (means, covariances, mixing coefficients) to maximize the expected log-likelihood.\nc) The number of clusters.\nd) The learning rate.",
+    "answer": "b"
+  },
+  {
+    "question": "According to the Universal Approximation Theorem, a feedforward neural network with a single hidden layer and finite number of neurons can:\na) Solve any optimization problem.\nb) Approximate any continuous function on compact subsets of R^n to arbitrary accuracy.\nc) Perform perfect classification on any dataset.\nd) Guarantee convergence to the global minimum.",
+    "answer": "b"
+  },
+  {
+    "question": "In a Support Vector Machine (SVM), what defines the decision boundary?\na) The centroid of each class.\nb) All data points in the training set.\nc) The support vectors and the margin.\nd) The prior probability of the classes.",
+    "answer": "c"
+  },
+  {
+    "question": "What is 'Few-Shot Learning'?\na) Learning from millions of examples.\nb) The ability of a model to learn a new task from a very small number of examples.\nc) Training for only a few epochs.\nd) Using a small neural network.",
+    "answer": "b"
+  },
+  {
+    "question": "In the context of gradient descent, what is a 'Saddle Point'?\na) The global minimum of the function.\nb) A point where the gradient is zero, but it is a minimum in one direction and a maximum in another.\nc) A point where the gradient is infinite.\nd) The point where training starts.",
+    "answer": "b"
+  },
+  {
+    "question": "In the context of AI Ethics, 'Disparate Impact' refers to:\na) Deliberate discrimination against a protected group.\nb) A facially neutral policy or model output that disproportionately affects a protected group.\nc) The varying cost of AI models.\nd) The impact of AI on unemployment.",
+    "answer": "b"
+  },
+  {
+    "question": "In Reinforcement Learning, what is the 'Agent' trying to maximize?\na) The immediate reward at the next step.\nb) The expected cumulative discounted reward.\nc) The accuracy of the state prediction.\nd) The length of the episode.",
+    "answer": "b"
+  },
+  {
+    "question": "The Naïve Bayes classifier makes a strong assumption that:\na) Features are mutually independent given the class label.\nb) The data is linearly separable.\nc) The prior probabilities of all classes are equal.\nd) Features are mutually exclusive.",
+    "answer": "a"
+  },
+  {
+    "question": "Why is Laplace smoothing (additive smoothing) used in Naïve Bayes?\na) To prevent division by zero when calculating priors.\nb) To handle continuous variables.\nc) To avoid zero probabilities for unseen features in the test set.\nd) To normalize the posterior probabilities.",
+    "answer": "c"
+  },
+  {
+    "question": "Why is the Median more robust to outliers than the Mean?\na) It uses all data points equally.\nb) It minimizes the sum of squared deviations.\nc) It minimizes the sum of absolute deviations and depends only on the rank order of data.\nd) It is easier to calculate.",
+    "answer": "c"
+  },
+  {
+    "question": "Why is 'Fairness through Unawareness' often insufficient?\na) Protected attributes are often correlated with other features (proxies) that remain in the data.\nb) It makes the model too slow.\nc) It requires too much data.\nd) It violates privacy laws.",
+    "answer": "a"
+  },
+  {
+    "question": "What is the primary role of the 'Discriminator' in a GAN (Generative Adversarial Network)?\na) To generate realistic data.\nb) To classify data as real or fake.\nc) To minimize the reconstruction error.\nd) To compress the input data.",
+    "answer": "b"
+  },
+  {
+    "question": "What is 'Transfer Learning'?\na) Moving data from one server to another.\nb) Using a model trained on one task as a starting point for a related task.\nc) converting a regression problem into classification.\nd) Training a model from scratch.",
+    "answer": "b"
+  },
+  {
+    "question": "What are Mel-Frequency Cepstral Coefficients (MFCCs) designed to mimic?\na) The exact waveform of the audio.\nb) The non-linear human perception of sound frequency.\nc) The digital sampling process.\nd) The noise profile of the microphone.",
+    "answer": "b"
+  },
+  {
+    "question": "What is the 'Approximation Error' (Bias) in the context of learning theory?\na) The error incurred because the model class is not powerful enough to represent the true function.\nb) The error due to limited training data (variance).\nc) The irreducible error due to noise.\nd) The error from numerical precision limits.",
+    "answer": "a"
+  },
+  {
+    "question": "In the bias-variance decomposition of Mean Squared Error (MSE), the error is composed of:\na) Bias^2 + Variance + Irreducible Error\nb) Bias + Variance + Noise\nc) Bias - Variance\nd) (Bias + Variance)^2",
+    "answer": "a"
+  },
+  {
+    "question": "Which function is used in Logistic Regression to map the linear combination of features to a probability between 0 and 1?\na) ReLU\nb) Sigmoid\nc) Tanh\nd) Softmax",
+    "answer": "b"
+  },
+  {
+    "question": "Which loss function is primarily used for multi-class classification problems in neural networks?\na) Mean Squared Error (MSE)\nb) Hinge Loss\nc) Cross-Entropy Loss\nd) Absolute Error",
+    "answer": "c"
+  }
+]
