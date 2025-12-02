@@ -54,7 +54,7 @@ Each question must have options labeled a, b, c, d, etc., and the answer provide
 ]
 
 """
-
+```
 ### Step 3: Generate synthetic data with an LLM
 
 Feed the above prompt and a subset of examples from  
@@ -67,7 +67,7 @@ This file is a list of objects of the form:
 
 ```json
 {"question": "…", "answer": "a"}
-```
+
 ```
 
 ### Step 4: Split the synthetic dataset into train and test sets
