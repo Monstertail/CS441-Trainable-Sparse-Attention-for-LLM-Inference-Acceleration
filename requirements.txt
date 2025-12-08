@@ -1,0 +1,24 @@
+# Core dependencies
+torch==2.7.0
+transformers==4.51.0
+fastNLP==0.7.0
+
+# Data processing
+datasets
+pandas
+numpy
+
+# Tensor operations
+einops
+
+# Training utilities
+tqdm
+accelerate
+
+# Optional but recommended
+tensorboard
+wandb
+
+# For evaluation
+scikit-learn
+
