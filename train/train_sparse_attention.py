@@ -16,6 +16,7 @@ from fastNLP import logger
 
 from data_loader import GSM8KLoader, StrategyQALoader, AugASDivLoader, AQuALoader
 from sparse_attention_model import LlamaWithSparseAttention
+from sparse_distillation_model import SparseDistillationModel
 from utils import pre_process_gsm8k, pre_process_strategy_qa, pre_process_aqua, CustomDataCollator
 
 
@@ -141,6 +142,26 @@ def parse_args():
         help='Compression method for V (default: max_pool for efficiency)'
     )
     
+    # Distillation and device args
+    parser.add_argument(
+        '--use_distillation',
+        action='store_true',
+        default=True,
+        help='Use dual-model distillation (default: True)'
+    )
+    parser.add_argument(
+        '--teacher_device',
+        type=str,
+        default='auto',
+        help='Device for teacher model (default: auto, or specify cuda:0, cuda:1, etc.)'
+    )
+    parser.add_argument(
+        '--student_device',
+        type=str,
+        default='auto',
+        help='Device for student model (default: auto, or specify cuda:0, cuda:1, etc.)'
+    )
+    
     # Logging and monitoring
     parser.add_argument(
         '--use_wandb',
@@ -200,6 +221,9 @@ def main():
                     'n_epochs': args.n_epochs,
                     'batch_size': args.batch_size,
                     'learning_rate': args.learning_rate,
+                    'use_distillation': args.use_distillation,
+                    'teacher_device': args.teacher_device if args.use_distillation else None,
+                    'student_device': args.student_device if args.use_distillation else None,
                     'compress_block_size': args.compress_block_size,
                     'num_selected_blocks': args.num_selected_blocks,
                     'k_compress_method': args.k_compress_method,
@@ -227,8 +251,6 @@ def main():
         raise NotImplementedError(f"Model {args.model_id} not supported yet")
     
     # Initialize model with sparse attention
-    logger.info("Initializing model with sparse attention adapters...")
-    
     sparse_attn_config = {
         'compress_block_size': args.compress_block_size,
         'compress_stride': args.compress_stride,
@@ -239,14 +261,62 @@ def main():
         'v_compress_method': args.v_compress_method,
     }
     
-    model = LlamaWithSparseAttention(
-        model_id=args.model_id,
-        sparse_attn_config=sparse_attn_config,
-        device_map='auto',
-    )
-    
-    # Print trainable parameter statistics
-    model.get_trainable_parameters()
+    if args.use_distillation:
+        logger.info("🔧 Initializing dual-model distillation (Teacher + Student)...")
+        
+        # Auto-assign devices if not specified
+        teacher_device = args.teacher_device
+        student_device = args.student_device
+        
+        if teacher_device == 'auto' or student_device == 'auto':
+            cuda_visible = os.environ.get('CUDA_VISIBLE_DEVICES', '')
+            if cuda_visible:
+                # Parse visible GPUs
+                visible_gpus = [int(x.strip()) for x in cuda_visible.split(',') if x.strip()]
+                if len(visible_gpus) >= 2:
+                    teacher_device = 'cuda:0'  # First visible GPU (remapped)
+                    student_device = 'cuda:1'  # Second visible GPU (remapped)
+                    logger.info(f"🤖 Auto-assigned: Teacher→cuda:0 (physical GPU {visible_gpus[0]}), Student→cuda:1 (physical GPU {visible_gpus[1]})")
+                elif len(visible_gpus) == 1:
+                    teacher_device = 'cuda:0'
+                    student_device = 'cuda:0'
+                    logger.warning(f"⚠️  Only 1 GPU available, using same device for both models")
+                else:
+                    teacher_device = 'cuda:0'
+                    student_device = 'cuda:0'
+                    logger.warning(f"⚠️  No CUDA_VISIBLE_DEVICES set, using cuda:0 for both")
+            else:
+                # Check available GPUs directly
+                num_gpus = torch.cuda.device_count()
+                if num_gpus >= 2:
+                    teacher_device = 'cuda:0'
+                    student_device = 'cuda:1'
+                    logger.info(f"🤖 Auto-assigned: Teacher→cuda:0, Student→cuda:1")
+                else:
+                    teacher_device = 'cuda:0'
+                    student_device = 'cuda:0'
+                    logger.warning(f"⚠️  Only {num_gpus} GPU(s) available, using same device")
+        
+        logger.info(f"  Teacher device: {teacher_device}")
+        logger.info(f"  Student device: {student_device}")
+        
+        model = SparseDistillationModel(
+            model_id=args.model_id,
+            sparse_attn_config=sparse_attn_config,
+            teacher_device=teacher_device,
+            student_device=student_device,
+        )
+    else:
+        logger.info("Initializing single model with sparse attention adapters...")
+        
+        model = LlamaWithSparseAttention(
+            model_id=args.model_id,
+            sparse_attn_config=sparse_attn_config,
+            device_map='auto',
+        )
+        
+        # Print trainable parameter statistics
+        model.get_trainable_parameters()
     
     # Load and preprocess dataset
     logger.info(f"Loading {args.task_name} dataset...")
@@ -351,6 +421,9 @@ def main():
         dataloader_num_workers=4,
         remove_unused_columns=False,  # Important: keep all columns
         
+        # Disable automatic multi-GPU (we manage devices manually)
+        ddp_find_unused_parameters=False,
+        
         # Report (add wandb if enabled)
         report_to=['tensorboard'] + (['wandb'] if args.use_wandb else []),
     )
@@ -362,7 +435,11 @@ def main():
     # - Multiple input fields (we only use input_ids, attention_mask, labels)
     data_collator = CustomDataCollator()
     
-    # Initialize trainer
+    # Prevent Trainer from using DataParallel (we manually manage dual-GPU)
+    # Override the detected GPU count to prevent automatic multi-GPU wrapping
+    training_args._n_gpu = 1  # Tell Trainer to treat this as single-GPU
+    
+    # Initialize trainer (Note: we manually manage multi-GPU in the model)
     trainer = Trainer(
         model=model,
         args=training_args,
@@ -377,7 +454,10 @@ def main():
     
     # Save model
     logger.info(f"💾 Saving sparse attention adapters to {save_model_dir}")
-    model.save_adapters(save_model_dir)
+    if args.use_distillation:
+        model.save_student(save_model_dir)  # Dual-model: save student adapters
+    else:
+        model.save_adapters(save_model_dir)  # Single-model: save adapters
     
     # Also save the full training config
     import json

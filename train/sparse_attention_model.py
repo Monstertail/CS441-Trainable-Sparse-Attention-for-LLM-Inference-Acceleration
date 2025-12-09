@@ -455,12 +455,17 @@ class LlamaWithSparseAttention(nn.Module):
                 'v_compress_method': 'max_pool',  # Changed to max_pool for efficiency
             }
         
-        # Load frozen base model
+        # Load frozen base model (use device_map='auto' like softCoT)
         self.base_model = AutoModelForCausalLM.from_pretrained(
             model_id,
             torch_dtype=torch.bfloat16,
-            device_map=device_map,
+            device_map=device_map if device_map else 'auto',
         )
+        
+        # Enable gradient checkpointing to save activation memory
+        if hasattr(self.base_model, 'gradient_checkpointing_enable'):
+            self.base_model.gradient_checkpointing_enable()
+            print(f"✅ Enabled gradient checkpointing for memory efficiency")
         
         # Freeze all base model parameters
         for param in self.base_model.parameters():
@@ -484,9 +489,20 @@ class LlamaWithSparseAttention(nn.Module):
         
         print(f"✅ Added {len(self.sparse_adapters)} sparse attention adapters")
         
+        # Move adapters to the same device as base model and save device
+        try:
+            self.device = next(self.base_model.parameters()).device
+        except StopIteration:
+            # Fallback if base_model has no parameters (shouldn't happen)
+            self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        
+        self.sparse_adapters = self.sparse_adapters.to(self.device)
+        print(f"✅ Moved sparse adapters to {self.device}")
+        
         # Store config
         self.config = config
         self.sparse_attn_config = sparse_attn_config
+        self.num_grouped_queries = config.num_attention_heads // config.num_key_value_heads
     
     def forward(
         self,
@@ -503,11 +519,24 @@ class LlamaWithSparseAttention(nn.Module):
         This replaces the base model's attention with sparse attention adapters.
         Uses the same loss as Native Sparse Attention: standard cross-entropy.
         """
+        # Ensure inputs are on the correct device (same as model)
+        if input_ids.device != self.device:
+            input_ids = input_ids.to(self.device)
+            if attention_mask is not None:
+                attention_mask = attention_mask.to(self.device)
+            if labels is not None:
+                labels = labels.to(self.device)
+        
         batch_size, seq_len = input_ids.shape
-        device = input_ids.device
+        device = self.device
         
         # 1. Embedding (frozen, but keep gradient flow for adapters)
         hidden = self.base_model.model.embed_tokens(input_ids)
+        
+        # Collect hidden states if requested (for distillation)
+        all_hidden_states = () if output_hidden_states else None
+        if output_hidden_states:
+            all_hidden_states = all_hidden_states + (hidden,)
         
         # 2. Process through each layer with sparse attention
         for layer_idx in range(len(self.base_model.model.layers)):
@@ -553,6 +582,10 @@ class LlamaWithSparseAttention(nn.Module):
             
             # 2.6 Residual (detach MLP output to save memory)
             hidden = residual + mlp_out.detach()
+            
+            # Collect hidden state after this layer (for distillation)
+            if output_hidden_states:
+                all_hidden_states = all_hidden_states + (hidden,)
         
         # 3. Final norm and LM head (need gradient for loss!)
         # Don't use no_grad here - we need gradient flow to loss
@@ -583,7 +616,7 @@ class LlamaWithSparseAttention(nn.Module):
             loss=loss,
             logits=logits,
             past_key_values=None,
-            hidden_states=None,
+            hidden_states=all_hidden_states,  # Return collected hidden states
             attentions=None,
         )
     
