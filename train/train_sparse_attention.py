@@ -141,6 +141,25 @@ def parse_args():
         help='Compression method for V (default: max_pool for efficiency)'
     )
     
+    # Logging and monitoring
+    parser.add_argument(
+        '--use_wandb',
+        action='store_true',
+        help='Use Weights & Biases for logging'
+    )
+    parser.add_argument(
+        '--wandb_project',
+        type=str,
+        default='sparse-attention',
+        help='W&B project name'
+    )
+    parser.add_argument(
+        '--wandb_run_name',
+        type=str,
+        default=None,
+        help='W&B run name (default: auto-generated)'
+    )
+    
     return parser.parse_args()
 
 
@@ -163,6 +182,34 @@ def main():
     logger.info(f'Output Dir: {output_dir}')
     logger.info(f'Log Dir: {log_dir}')
     logger.info(f'Save Model Dir: {save_model_dir}')
+    
+    # Initialize wandb if requested
+    if args.use_wandb:
+        try:
+            import wandb
+            
+            # Auto-generate run name if not provided
+            wandb_run_name = args.wandb_run_name or f"{args.output_name}-{post_fix}"
+            
+            wandb.init(
+                project=args.wandb_project,
+                name=wandb_run_name,
+                config={
+                    'model_id': args.model_id,
+                    'task_name': args.task_name,
+                    'n_epochs': args.n_epochs,
+                    'batch_size': args.batch_size,
+                    'learning_rate': args.learning_rate,
+                    'compress_block_size': args.compress_block_size,
+                    'num_selected_blocks': args.num_selected_blocks,
+                    'k_compress_method': args.k_compress_method,
+                    'v_compress_method': args.v_compress_method,
+                }
+            )
+            logger.info(f"✅ W&B initialized: {wandb.run.url}")
+        except ImportError:
+            logger.warning("⚠️  wandb not installed. Install with: pip install wandb")
+            args.use_wandb = False
     
     # Load tokenizer
     tokenizer = AutoTokenizer.from_pretrained(args.model_id)
@@ -273,8 +320,8 @@ def main():
         output_dir=output_dir,
         overwrite_output_dir=True,
         
-        # Evaluation
-        evaluation_strategy='epoch',
+        # Evaluation (updated for transformers 4.51.0+)
+        eval_strategy='epoch',  # Changed from 'evaluation_strategy' in newer transformers
         save_strategy='epoch',
         save_total_limit=5,
         
@@ -304,20 +351,16 @@ def main():
         dataloader_num_workers=4,
         remove_unused_columns=False,  # Important: keep all columns
         
-        # Report
-        report_to=['tensorboard'],
+        # Report (add wandb if enabled)
+        report_to=['tensorboard'] + (['wandb'] if args.use_wandb else []),
     )
     
-    # Data collator (from softCoT utils)
-    # We'll create a simplified version that removes assistant-related fields
-    class SparseAttentionDataCollator:
-        def __call__(self, features):
-            # Remove assistant-related fields
-            batch = {}
-            for key in ['input_ids', 'attention_mask', 'labels']:
-                if key in features[0]:
-                    batch[key] = torch.tensor([f[key] for f in features])
-            return batch
+    # Use CustomDataCollator from utils.py (already has padding logic)
+    # This is the same collator used in SoftCoT, well-tested and handles:
+    # - Dynamic padding to max length in batch
+    # - Proper handling of labels (-100 for padding)
+    # - Multiple input fields (we only use input_ids, attention_mask, labels)
+    data_collator = CustomDataCollator()
     
     # Initialize trainer
     trainer = Trainer(
@@ -325,7 +368,7 @@ def main():
         args=training_args,
         train_dataset=train_data,
         eval_dataset=eval_data,
-        data_collator=SparseAttentionDataCollator(),
+        data_collator=data_collator,
     )
     
     # Train

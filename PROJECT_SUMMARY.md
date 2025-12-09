@@ -54,6 +54,52 @@ Input Tokens
 Output Logits
 ```
 
+```python
+# INPUT (per layer)
+hidden: [batch, seq_len, hidden_size]
+residual = hidden
+    ↓
+# PRE-ATTENTION NORM (frozen)
+normed = layer.input_layernorm(hidden)  # [b, n, h_size]
+    ↓
+# QKV PROJECTIONS (frozen)
+q_proj = layer.self_attn.q_proj(normed)  # [b, n, num_heads * dim_head]
+k_proj = layer.self_attn.k_proj(normed)  # [b, n, num_kv_heads * dim_head]
+v_proj = layer.self_attn.v_proj(normed)  # [b, n, num_kv_heads * dim_head]
+    ↓
+# RESHAPE TO MULTI-HEAD
+q = q_proj.view(...).transpose(1, 2)  # [b, num_heads, n, dim_head]
+k = k_proj.view(...).transpose(1, 2)  # [b, num_kv_heads, n, dim_head]
+v = v_proj.view(...).transpose(1, 2)  # [b, num_kv_heads, n, dim_head]
+    ↓
+# SPARSE ADAPTER (trainable!)
+sparse_attn_out = self.sparse_adapters[layer_idx](
+    normed, q, k, v
+)  # [b, num_heads, n, dim_head]
+    ↓
+# MERGE HEADS
+sparse_attn_out = sparse_attn_out.transpose(1, 2).contiguous()
+sparse_attn_out = sparse_attn_out.view(batch, seq_len, hidden_size)
+# [b, n, hidden_size]
+    ↓
+# OUTPUT PROJECTION (frozen)
+attn_output = layer.self_attn.o_proj(sparse_attn_out)
+# [b, n, hidden_size]
+    ↓
+# RESIDUAL CONNECTION
+hidden = residual + attn_output  # [b, n, h_size] + [b, n, h_size] ✅
+    ↓
+# POST-ATTENTION (frozen)
+normed = layer.post_attention_layernorm(hidden)
+mlp_out = layer.mlp(normed)
+hidden = hidden + mlp_out  # [b, n, h_size] ✅
+    ↓
+# OUTPUT
+hidden: [batch, seq_len, hidden_size]  
+```
+
+---
+
 ## 📁 Project Structure
 
 ```
@@ -373,4 +419,5 @@ If you use this code, please cite:
 **For detailed documentation, see**:
 - `README_SPARSE_ATTENTION.md` - User guide
 - `DESIGN_GUIDE_CN.md` - Design details (Chinese)
+
 

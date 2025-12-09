@@ -9,6 +9,7 @@ import torch.nn.functional as F
 from transformers import AutoModelForCausalLM, AutoConfig
 from typing import Optional, Tuple
 from einops import rearrange, repeat, reduce
+from fastNLP import logger
 
 
 class MaxPoolCompress(nn.Module):
@@ -185,6 +186,11 @@ class SparseAttentionAdapter(nn.Module):
         self.strategy_combiner[0].bias.data.copy_(
             torch.tensor([-2., -2., 2.] * num_heads)  # [compressed, fine, sliding]
         )
+        
+        # Merge and combine heads (like Native Sparse Attention)
+        # merge_heads: [b, h, n, d] -> [b, n, h*d]
+        # combine_heads: [b, n, h*d] -> [b, n, hidden_size]
+        self.combine_heads = nn.Linear(num_heads * self.dim_head, hidden_size, bias=False)
     
     def compute_compressed_attention(
         self,
@@ -318,31 +324,27 @@ class SparseAttentionAdapter(nn.Module):
         debug_print=False,    # Enable dimension checking
     ):
         """
+        Forward pass implementing Native Sparse Attention's three-branch architecture
+        
         Args:
             hidden_states: [batch, seq_len, hidden_size]
-            q, k, v: Query, Key, Value from base model [batch, num_heads, seq_len, dim_head]
+            q, k, v: Query, Key, Value from base model
+                q: [batch, num_heads, seq_len, dim_head]
+                k, v: [batch, num_kv_heads, seq_len, dim_head]
             attention_mask: Optional attention mask
             debug_print: If True, print dimension information for verification
         
         Returns:
-            Weighted combination of three attention branches
+            out: [batch, seq_len, hidden_size] - Same shape as Llama's attention output
         """
         batch_size, seq_len, _ = hidden_states.shape
         scale = self.dim_head ** -0.5
         
         # 1. Compressed attention branch
-        # Compress K and V (only use KV heads)
-        k_kv = rearrange(
-            k, 
-            'b (h g) n d -> b h n d', 
-            g=self.num_grouped_queries
-        )[:, :self.num_kv_heads]
-        
-        v_kv = rearrange(
-            v,
-            'b (h g) n d -> b h n d',
-            g=self.num_grouped_queries
-        )[:, :self.num_kv_heads]
+        # K and V are already [batch, num_kv_heads, seq_len, dim_head] from forward
+        # No need to rearrange, they come directly from the model
+        k_kv = k  # Already [batch, num_kv_heads, seq_len, dim_head]
+        v_kv = v  # Already [batch, num_kv_heads, seq_len, dim_head]
         
         if debug_print:
             print(f"\n{'='*60}")
@@ -415,10 +417,17 @@ class SparseAttentionAdapter(nn.Module):
         # Stack outputs: [3, batch, num_heads, seq_len, dim_head]
         stacked_outputs = torch.stack([compressed_out, fine_out, sliding_out], dim=0)
         
-        # Weighted combination
+        # Weighted combination: [batch, num_heads, seq_len, dim_head]
         combined = torch.einsum('sbhnd,bhns->bhnd', stacked_outputs, strategy_weights)
         
-        return combined
+        # 5. Merge heads and combine (like Native Sparse Attention)
+        # [batch, num_heads, seq_len, dim_head] -> [batch, seq_len, num_heads * dim_head]
+        combined = rearrange(combined, 'b h n d -> b n (h d)')
+        
+        # [batch, seq_len, num_heads * dim_head] -> [batch, seq_len, hidden_size]
+        out = self.combine_heads(combined)
+        
+        return out  # [batch, seq_len, hidden_size] ✅
 
 
 class LlamaWithSparseAttention(nn.Module):
@@ -484,26 +493,99 @@ class LlamaWithSparseAttention(nn.Module):
         input_ids=None,
         attention_mask=None,
         labels=None,
+        output_hidden_states=False,
+        return_dict=True,
         **kwargs
     ):
         """
-        Forward pass with sparse attention
+        Forward pass with sparse attention fully integrated
         
-        Note: This is a simplified version. For full integration, you'd need to:
-        1. Hook into each layer's attention computation
-        2. Replace/augment with sparse attention
-        3. Handle caching for generation
+        This replaces the base model's attention with sparse attention adapters.
+        Uses the same loss as Native Sparse Attention: standard cross-entropy.
         """
-        # For now, just use base model
-        # TODO: Implement full sparse attention integration
-        outputs = self.base_model(
-            input_ids=input_ids,
-            attention_mask=attention_mask,
-            labels=labels,
-            **kwargs
-        )
+        batch_size, seq_len = input_ids.shape
+        device = input_ids.device
         
-        return outputs
+        # 1. Embedding (frozen, but keep gradient flow for adapters)
+        hidden = self.base_model.model.embed_tokens(input_ids)
+        
+        # 2. Process through each layer with sparse attention
+        for layer_idx in range(len(self.base_model.model.layers)):
+            layer = self.base_model.model.layers[layer_idx]
+            residual = hidden
+            
+            # 2.1 Input layer norm (frozen, but keep gradient flow)
+            normed = layer.input_layernorm(hidden)
+            
+            # 2.2 Get Q, K, V from frozen projections (keep gradient flow)
+            q_proj = layer.self_attn.q_proj(normed)
+            k_proj = layer.self_attn.k_proj(normed)
+            v_proj = layer.self_attn.v_proj(normed)
+            
+            # Reshape to [batch, heads, seq_len, dim_head]
+            dim_head = self.config.hidden_size // self.config.num_attention_heads
+            
+            q = q_proj.view(batch_size, seq_len, self.config.num_attention_heads, dim_head)
+            k = k_proj.view(batch_size, seq_len, self.config.num_key_value_heads, dim_head)
+            v = v_proj.view(batch_size, seq_len, self.config.num_key_value_heads, dim_head)
+            
+            q = q.transpose(1, 2)  # [batch, heads, seq_len, dim_head]
+            k = k.transpose(1, 2)
+            v = v.transpose(1, 2)
+            
+            # 2.3 Apply trainable sparse adapter
+            # This is where the trainable parameters are!
+            # Adapter returns [batch, seq_len, hidden_size] directly (like NSA)
+            attn_output = self.sparse_adapters[layer_idx](
+                normed, q, k, v,
+                attention_mask=attention_mask,
+                debug_print=False
+            )  # [batch, seq_len, hidden_size] ✅
+            
+            # 2.4 Residual connection (directly, like NSA!)
+            hidden = residual + attn_output
+            
+            # 2.5 Post-attention layer norm (frozen, but keep gradient flow)
+            residual = hidden
+            normed = layer.post_attention_layernorm(hidden)
+            
+            # 2.6 MLP (frozen, but keep gradient flow)
+            mlp_out = layer.mlp(normed)
+            
+            # 2.7 Residual
+            hidden = residual + mlp_out
+        
+        # 3. Final layer norm and LM head (frozen, but keep gradient flow)
+        hidden = self.base_model.model.norm(hidden)
+        logits = self.base_model.lm_head(hidden)
+        
+        # 4. Compute loss (SAME AS NATIVE SPARSE ATTENTION!)
+        loss = None
+        if labels is not None:
+            # Shift for next-token prediction
+            shift_logits = logits[..., :-1, :].contiguous()
+            shift_labels = labels[..., 1:].contiguous()
+            
+            # Standard cross-entropy loss
+            loss = F.cross_entropy(
+                shift_logits.view(-1, shift_logits.size(-1)),
+                shift_labels.view(-1),
+                ignore_index=-100
+            )
+        
+        # Return in transformers format
+        if not return_dict:
+            output = (logits,)
+            return ((loss,) + output) if loss is not None else output
+        
+        from transformers.modeling_outputs import CausalLMOutputWithPast
+        return CausalLMOutputWithPast(
+            loss=loss,
+            logits=logits,
+            past_key_values=None,
+            hidden_states=None,
+            attentions=None,
+        )
     
     def get_trainable_parameters(self):
         """Return only trainable parameters (sparse adapters)"""
@@ -547,6 +629,55 @@ class LlamaWithSparseAttention(nn.Module):
         self.sparse_adapters.load_state_dict(checkpoint['sparse_adapters'])
         
         print(f"📂 Loaded sparse attention adapters from {load_path}")
+    
+    def verify_gradient_flow(self, input_ids, labels):
+        """
+        Verify that gradients flow correctly to sparse adapters
+        This uses the SAME LOSS as Native Sparse Attention!
+        """
+        self.train()
+        
+        logger.info("🔍 Verifying gradient flow (using Native Sparse Attention's loss)...")
+        
+        # Forward pass - standard cross-entropy
+        outputs = self(input_ids=input_ids, labels=labels)
+        loss = outputs.loss
+        
+        logger.info(f"✅ Loss computed: {loss.item():.4f}")
+        
+        # Backward pass
+        loss.backward()
+        
+        # Check gradients on adapters (should have gradients!)
+        adapter_grads = []
+        for i, adapter in enumerate(self.sparse_adapters):
+            grad_norm = 0.0
+            param_count = 0
+            
+            for name, param in adapter.named_parameters():
+                if param.grad is not None:
+                    grad_norm += param.grad.norm().item()
+                    param_count += 1
+            
+            adapter_grads.append((i, grad_norm, param_count))
+            if i < 3 or i >= len(self.sparse_adapters) - 3:  # Show first and last 3
+                logger.info(f"  Layer {i}: grad_norm={grad_norm:.6f}, params_with_grad={param_count}")
+        
+        # Check base model (should NOT have gradients!)
+        base_grads = 0
+        for param in self.base_model.parameters():
+            if param.grad is not None:
+                base_grads += param.grad.norm().item()
+        
+        if base_grads > 0:
+            logger.warning(f"⚠️  Base model has gradients ({base_grads:.6f})! This should not happen.")
+        else:
+            logger.info("✅ Base model correctly frozen (no gradients)")
+        
+        # Zero gradients
+        self.zero_grad()
+        
+        return adapter_grads
 
 
 if __name__ == "__main__":
