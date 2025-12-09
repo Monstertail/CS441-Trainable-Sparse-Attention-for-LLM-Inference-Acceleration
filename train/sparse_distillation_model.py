@@ -54,6 +54,13 @@ class SparseDistillationModel(nn.Module):
         self.device = self.base_model.device
         logger.info(f"📍 Models placed on device: {self.device}")
         
+        # Statistical LayerNorm (no learnable params) for stable loss computation
+        self.ln_stat = nn.LayerNorm(
+            self.config.hidden_size, 
+            elementwise_affine=False  # No learnable parameters, just normalization
+        ).to(self.device)
+        logger.info(f"✅ Added statistical LayerNorm for stable distillation loss")
+        
         # Display trainable parameter statistics
         self.print_trainable_parameters()
     
@@ -134,15 +141,22 @@ class SparseDistillationModel(nn.Module):
                 teacher_h = teacher_hidden_states[layer_idx]
                 student_h = student_hidden_states[layer_idx]
                 
-                # Use cosine similarity loss (more stable than MSE for large hidden states)
-                # Normalize to [-1, 1] range then convert to [0, 2] loss
-                cos_sim = F.cosine_similarity(
-                    student_h.view(-1, student_h.size(-1)),
-                    teacher_h.detach().view(-1, teacher_h.size(-1)),
-                    dim=-1
-                )
-                # Loss = 1 - cos_sim, so perfect match = 0, opposite = 2
-                layer_loss = (1 - cos_sim).mean()
+                # Apply statistical LayerNorm before computing loss
+                # This normalizes the scale and makes training more stable
+                s_norm = self.ln_stat(student_h)
+                t_norm = self.ln_stat(teacher_h.detach())
+                
+                # MSE loss on normalized hidden states
+                layer_loss = F.mse_loss(s_norm, t_norm)
+                
+                # Alternative: Cosine similarity loss (commented out)
+                # cos_sim = F.cosine_similarity(
+                #     student_h.view(-1, student_h.size(-1)),
+                #     teacher_h.detach().view(-1, teacher_h.size(-1)),
+                #     dim=-1
+                # )
+                # layer_loss = (1 - cos_sim).mean()
+                
                 distill_loss += layer_loss
                 num_layers += 1
         

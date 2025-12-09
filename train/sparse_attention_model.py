@@ -643,6 +643,13 @@ class LlamaWithSparseAttention(nn.Module):
         
         return [p for _, p in trainable_params]
     
+    def save_pretrained(self, save_dir, **kwargs):
+        """
+        Custom save for Trainer compatibility - only save trainable adapters
+        This is called by Trainer during checkpointing
+        """
+        self.save_adapters(save_dir)
+    
     def save_adapters(self, save_dir):
         """Save only the trainable sparse attention adapters"""
         import os
@@ -655,7 +662,7 @@ class LlamaWithSparseAttention(nn.Module):
         
         save_path = os.path.join(save_dir, 'sparse_adapters.pt')
         torch.save(adapter_state, save_path)
-        print(f"💾 Saved sparse attention adapters to {save_path}")
+        print(f"💾 Saved sparse attention adapters to {save_path} (excluding frozen base model)")
     
     def load_adapters(self, save_dir):
         """Load trained sparse attention adapters"""

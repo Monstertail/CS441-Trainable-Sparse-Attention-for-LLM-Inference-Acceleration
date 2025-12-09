@@ -16,8 +16,9 @@ MODEL_ID="meta-llama/Llama-3.2-1B-Instruct"  # Use Instruct version (has chat_te
 DATA_PATH="/home/xinyuya2/jinwei/nsa/CS441-Trainable-Sparse-Attention-for-LLM-Inference-Acceleration/train/data/gsm8k"
 
 # Training hyperparameters
-BATCH_SIZE=2  # Reduced from 4 to avoid OOM with dual models
-GRAD_ACCUM=16  # Increased to maintain effective batch size of 16
+BATCH_SIZE=2  # Small batch for memory efficiency
+GRAD_ACCUM=4   # Reduced from 16 for more frequent updates (better for distillation)
+# Effective batch = 2 × 4 = 8 (smaller but more stable for distillation)
 N_EPOCHS=3
 LR=1e-5  # Further reduced for stability (large grad_norm observed)
 WARMUP_RATIO=0.2  # Increased from 0.1 for more stable training
