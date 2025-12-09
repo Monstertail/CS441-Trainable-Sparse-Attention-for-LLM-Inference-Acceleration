@@ -30,6 +30,8 @@ WANDB_RUN_NAME=""             # Leave empty for auto-generated name
 
 # Distillation settings
 USE_DISTILLATION=true            # Use dual-model distillation (default: true)
+LOSS_MODE="mse_hidden"       # Loss mode: kl_output_only (default, most efficient), kl_logits, mse_hidden, or mixed
+TEMPERATURE=2.0                  # Temperature for KL divergence (default: 2.0)
 
 # Sparse attention hyperparameters
 COMPRESS_BLOCK_SIZE=16
@@ -82,7 +84,7 @@ fi
 # Build distillation arguments (use remapped device IDs!)
 DISTILL_ARGS=""
 if [ "$USE_DISTILLATION" = true ]; then
-    DISTILL_ARGS="--use_distillation --teacher_device $TEACHER_DEVICE --student_device $STUDENT_DEVICE"
+    DISTILL_ARGS="--use_distillation --loss_mode $LOSS_MODE --temperature $TEMPERATURE --teacher_device $TEACHER_DEVICE --student_device $STUDENT_DEVICE"
 fi
 
 python train_sparse_attention.py \
@@ -112,6 +114,7 @@ echo "Model saved to: ./ckpt/${EXPERIMENT_NAME}-${TASK_NAME}-${N_EPOCHS}epoch-Ll
 echo ""
 echo "Training Configuration:"
 echo "  - Distillation: $USE_DISTILLATION"
+echo "  - Loss Mode: $LOSS_MODE (Temperature: $TEMPERATURE)"
 echo "  - Teacher GPU: $TEACHER_GPU"
 echo "  - Student GPU: $STUDENT_GPU"
 echo "  - Compression: K=$K_COMPRESS_METHOD, V=$V_COMPRESS_METHOD"

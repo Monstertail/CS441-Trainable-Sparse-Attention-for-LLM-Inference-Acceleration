@@ -150,6 +150,19 @@ def parse_args():
         help='Use dual-model distillation (default: True)'
     )
     parser.add_argument(
+        '--loss_mode',
+        type=str,
+        choices=['kl_logits', 'kl_output_only', 'mse_hidden', 'mixed'],
+        default='kl_output_only',
+        help='Distillation loss mode: kl_output_only (default, KL only on output tokens), kl_logits (KL on all tokens), mse_hidden (MSE on hidden layers), mixed (KL+MSE)'
+    )
+    parser.add_argument(
+        '--temperature',
+        type=float,
+        default=2.0,
+        help='Temperature for KL divergence distillation (default: 2.0, standard value)'
+    )
+    parser.add_argument(
         '--teacher_device',
         type=str,
         default='auto',
@@ -222,6 +235,8 @@ def main():
                     'batch_size': args.batch_size,
                     'learning_rate': args.learning_rate,
                     'use_distillation': args.use_distillation,
+                    'loss_mode': args.loss_mode if args.use_distillation else None,
+                    'temperature': args.temperature if args.use_distillation else None,
                     'teacher_device': args.teacher_device if args.use_distillation else None,
                     'student_device': args.student_device if args.use_distillation else None,
                     'compress_block_size': args.compress_block_size,
@@ -305,6 +320,8 @@ def main():
             sparse_attn_config=sparse_attn_config,
             teacher_device=teacher_device,
             student_device=student_device,
+            loss_mode=args.loss_mode,
+            temperature=args.temperature,
         )
     else:
         logger.info("Initializing single model with sparse attention adapters...")

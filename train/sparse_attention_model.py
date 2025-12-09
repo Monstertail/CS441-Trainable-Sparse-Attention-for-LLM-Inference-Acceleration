@@ -203,6 +203,7 @@ class SparseAttentionAdapter(nn.Module):
         sliding_window_size=64,
         k_compress_method='mean_pool',  # 'max_pool', 'mean_pool', or 'mlp'
         v_compress_method='mean_pool',  # 'max_pool', 'mean_pool', or 'mlp'
+        teacher_o_proj_weight=None,  # Teacher's o_proj weight for initialization
     ):
         super().__init__()
         
@@ -252,16 +253,16 @@ class SparseAttentionAdapter(nn.Module):
             torch.zeros(2, num_kv_heads, self.num_mem_tokens, self.dim_head)
         )
         
-        # Strategy combiner: learn to weight three branches
-        self.strategy_combiner = nn.Sequential(
-            nn.Linear(hidden_size, 3 * num_heads),
-            nn.Sigmoid()
-        )
+        # Strategy combiner: learn to weight three branches (following Native Sparse Attention)
+        # Use Linear only, apply softmax in forward pass
+        self.strategy_combiner = nn.Linear(hidden_size, 3 * num_heads)
         
-        # Initialize to favor sliding window initially
-        nn.init.zeros_(self.strategy_combiner[0].weight)
-        self.strategy_combiner[0].bias.data.copy_(
-            torch.tensor([-2., -2., 2.] * num_heads)  # [compressed, fine, sliding]
+        # Initialize to STRONGLY favor sliding window initially (critical for stable KL training)
+        # After softmax, this gives: compressed≈0.007, fine≈0.007, sliding≈0.986
+        # So initially, adapter output ≈ sliding window ≈ original attention
+        nn.init.zeros_(self.strategy_combiner.weight)
+        self.strategy_combiner.bias.data.copy_(
+            torch.tensor([-5., -5., 5.] * num_heads)  # [compressed, fine, sliding]
         )
         
         # Merge and combine heads (like Native Sparse Attention)
@@ -269,9 +270,16 @@ class SparseAttentionAdapter(nn.Module):
         # combine_heads: [b, n, h*d] -> [b, n, hidden_size]
         self.combine_heads = nn.Linear(num_heads * self.dim_head, hidden_size, bias=False)
         
-        # Initialize combine_heads to near-identity for stable training
-        # Start with small random weights so adapter output ≈ 0 initially
-        nn.init.normal_(self.combine_heads.weight, mean=0.0, std=0.02)
+        # Initialize combine_heads from teacher's o_proj for better initialization
+        # This ensures student output projection matches teacher's at initialization
+        if teacher_o_proj_weight is not None:
+            with torch.no_grad():
+                self.combine_heads.weight.copy_(teacher_o_proj_weight)
+            print(f"✅ Initialized combine_heads from teacher's o_proj")
+        else:
+            # Fallback: small random initialization
+            nn.init.normal_(self.combine_heads.weight, mean=0.0, std=0.001)
+            print(f"⚠️  Teacher o_proj not provided, using random initialization")
     
     def compute_compressed_attention(
         self,
@@ -486,14 +494,17 @@ class SparseAttentionAdapter(nn.Module):
         attn = F.softmax(sim, dim=-1)
         sliding_out = torch.einsum('bhij,bhjd->bhid', attn, v_full)
         
-        # 4. Combine three branches with learned weights
-        strategy_weights = self.strategy_combiner(hidden_states)  # [batch, seq_len, 3 * num_heads]
-        strategy_weights = rearrange(
-            strategy_weights,
+        # 4. Combine three branches with learned weights (following Native Sparse Attention)
+        strategy_logits = self.strategy_combiner(hidden_states)  # [batch, seq_len, 3 * num_heads]
+        strategy_logits = rearrange(
+            strategy_logits,
             'b n (h s) -> b h n s',
             h=self.num_heads,
             s=3
         )
+        
+        # Apply softmax to ensure weights sum to 1 (following NSA)
+        strategy_weights = F.softmax(strategy_logits, dim=-1)  # [batch, num_heads, seq_len, 3]
         
         # Stack outputs: [3, batch, num_heads, seq_len, dim_head]
         stacked_outputs = torch.stack([compressed_out, fine_out, sliding_out], dim=0)
@@ -558,17 +569,19 @@ class LlamaWithSparseAttention(nn.Module):
         config = self.base_model.config
         
         # Create sparse attention adapters for each layer
+        # Pass teacher's o_proj weight for better initialization
         self.sparse_adapters = nn.ModuleList([
             SparseAttentionAdapter(
                 hidden_size=config.hidden_size,
                 num_heads=config.num_attention_heads,
                 num_kv_heads=config.num_key_value_heads,
+                teacher_o_proj_weight=self.base_model.model.layers[layer_idx].self_attn.o_proj.weight.data.clone(),
                 **sparse_attn_config
             )
-            for _ in range(config.num_hidden_layers)
+            for layer_idx in range(config.num_hidden_layers)
         ])
         
-        print(f"✅ Added {len(self.sparse_adapters)} sparse attention adapters")
+        print(f"✅ Added {len(self.sparse_adapters)} sparse attention adapters (initialized from teacher's o_proj)")
         
         # Move adapters to the same device as base model and save device
         try:
