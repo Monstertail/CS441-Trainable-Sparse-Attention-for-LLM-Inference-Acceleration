@@ -545,17 +545,17 @@ class LlamaWithSparseAttention(nn.Module):
             # 2.4 Residual connection (directly, like NSA!)
             hidden = residual + attn_output
             
-            # 2.5 Post-attention layer norm (frozen, but keep gradient flow)
+            # 2.5 Post-attention (frozen, no grad needed for MLP)
             residual = hidden
-            normed = layer.post_attention_layernorm(hidden)
+            with torch.no_grad():
+                normed = layer.post_attention_layernorm(hidden)
+                mlp_out = layer.mlp(normed)
             
-            # 2.6 MLP (frozen, but keep gradient flow)
-            mlp_out = layer.mlp(normed)
-            
-            # 2.7 Residual
-            hidden = residual + mlp_out
+            # 2.6 Residual (detach MLP output to save memory)
+            hidden = residual + mlp_out.detach()
         
-        # 3. Final layer norm and LM head (frozen, but keep gradient flow)
+        # 3. Final norm and LM head (need gradient for loss!)
+        # Don't use no_grad here - we need gradient flow to loss
         hidden = self.base_model.model.norm(hidden)
         logits = self.base_model.lm_head(hidden)
         
