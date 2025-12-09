@@ -25,8 +25,11 @@ except AttributeError:
             self.dim = dim
         
         def forward(self, x: torch.Tensor):
+            # Preserve input dtype
+            input_dtype = x.dtype
             norm = x.pow(2).mean(-1, keepdim=True).add(self.eps).rsqrt()
-            return x * norm * self.scale
+            # Ensure scale has same dtype as input
+            return (x * norm * self.scale.to(input_dtype)).to(input_dtype)
 
 
 class MaxPoolCompress(nn.Module):
@@ -291,14 +294,22 @@ class SparseAttentionAdapter(nn.Module):
     ):
         """Compute coarse-grained attention over compressed KV"""
         batch_size = q.shape[0]
+        q_dtype = q.dtype  # preserve original dtype of queries
         
         # Add memory tokens
         mem_ck, mem_cv = repeat(
-            self.compress_mem_kv, 
-            'kv h m d -> kv b h m d', 
+            self.compress_mem_kv,
+            'kv h m d -> kv b h m d',
             b=batch_size
         )
-        
+
+        # Ensure all tensors participating in attention have the same dtype
+        # This avoids einsum dtype mismatch between float32 / bfloat16
+        mem_ck = mem_ck.to(q_dtype)
+        mem_cv = mem_cv.to(q_dtype)
+        ck = ck.to(q_dtype)
+        cv = cv.to(q_dtype)
+
         ck = torch.cat([mem_ck, ck], dim=2)
         cv = torch.cat([mem_cv, cv], dim=2)
         
@@ -516,8 +527,9 @@ class SparseAttentionAdapter(nn.Module):
             print(f"Original V shape: {v_kv.shape}")
             print(f"  -> [batch={k_kv.shape[0]}, kv_heads={k_kv.shape[1]}, seq_len={k_kv.shape[2]}, dim_head={k_kv.shape[3]}]")
         
-        ck = self.k_compress(k_kv)
-        cv = self.v_compress(v_kv)
+        # Compress K and V, ensure dtype consistency with Q
+        ck = self.k_compress(k_kv).to(q.dtype)
+        cv = self.v_compress(v_kv).to(q.dtype)
         
         if debug_print:
             num_blocks = seq_len // self.compress_block_size
@@ -663,15 +675,19 @@ class LlamaWithSparseAttention(nn.Module):
         
         print(f"✅ Added {len(self.sparse_adapters)} sparse attention adapters (initialized from teacher's o_proj)")
         
-        # Move adapters to the same device as base model and save device
+        # Move adapters to the same device and dtype as base model and save them
         try:
-            self.device = next(self.base_model.parameters()).device
+            base_param = next(self.base_model.parameters())
+            self.device = base_param.device
+            self.dtype = base_param.dtype
         except StopIteration:
             # Fallback if base_model has no parameters (shouldn't happen)
             self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+            self.dtype = torch.bfloat16 if torch.cuda.is_available() else torch.float32
         
-        self.sparse_adapters = self.sparse_adapters.to(self.device)
-        print(f"✅ Moved sparse adapters to {self.device}")
+        # Ensure all adapter parameters match base model's dtype (e.g., bfloat16)
+        self.sparse_adapters = self.sparse_adapters.to(device=self.device, dtype=self.dtype)
+        print(f"✅ Moved sparse adapters to {self.device} with dtype {self.dtype}")
         
         # Store config
         self.config = config
