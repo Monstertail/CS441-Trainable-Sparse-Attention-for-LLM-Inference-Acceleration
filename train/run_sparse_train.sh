@@ -17,7 +17,7 @@ DATA_PATH="/home/xinyuya2/jinwei/nsa/CS441-Trainable-Sparse-Attention-for-LLM-In
 
 # Training hyperparameters
 BATCH_SIZE=2  # Small batch for memory efficiency
-GRAD_ACCUM=4   # Reduced from 16 for more frequent updates (better for distillation)
+GRAD_ACCUM=16   # Reduced from 16 for more frequent updates (better for distillation)
 # Effective batch = 2 × 4 = 8 (smaller but more stable for distillation)
 N_EPOCHS=3
 LR=1e-5  # Further reduced for stability (large grad_norm observed)
@@ -35,7 +35,7 @@ USE_DISTILLATION=true            # Use dual-model distillation (default: true)
 COMPRESS_BLOCK_SIZE=16
 COMPRESS_STRIDE=8
 SELECTION_BLOCK_SIZE=16
-NUM_SELECTED_BLOCKS=4
+NUM_SELECTED_BLOCKS=8
 SLIDING_WINDOW_SIZE=64
 K_COMPRESS_METHOD="max_pool"  # or "mlp" (default: max_pool for efficiency)
 V_COMPRESS_METHOD="mlp"       # or "max_pool" (default: mlp for better learning)

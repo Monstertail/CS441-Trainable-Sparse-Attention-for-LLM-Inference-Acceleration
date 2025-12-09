@@ -406,6 +406,8 @@ def main():
         warmup_ratio=args.warmup_ratio,
         weight_decay=args.weight_decay,
         max_grad_norm=0.1,  # Very strict clipping (saw grad_norm > 1000)
+        lr_scheduler_type='cosine_with_restarts',  # Cosine with restarts (better for distillation)
+        lr_scheduler_kwargs={'num_cycles': 2},  # 2 restarts over 3 epochs
         
         # Precision
         bf16=True,

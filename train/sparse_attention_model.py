@@ -453,7 +453,7 @@ class LlamaWithSparseAttention(nn.Module):
                 'compress_block_size': 16,
                 'compress_stride': 8,
                 'selection_block_size': 16,
-                'num_selected_blocks': 4,
+                'num_selected_blocks': 8,
                 'sliding_window_size': 64,
                 'k_compress_method': 'max_pool',
                 'v_compress_method': 'max_pool',  # Changed to max_pool for efficiency
