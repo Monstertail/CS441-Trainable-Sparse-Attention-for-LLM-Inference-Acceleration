@@ -246,6 +246,12 @@ def main():
         default=None,
         help='Output file for detailed results'
     )
+    parser.add_argument(
+        '--max_samples',
+        type=int,
+        default=None,
+        help='Maximum number of samples to evaluate (None = all samples)'
+    )
     
     args = parser.parse_args()
     
@@ -315,7 +321,14 @@ def main():
         raise NotImplementedError(f"Task {args.task_name} not implemented")
     
     eval_dataset = db.get_dataset(args.split)
-    logger.info(f"Loaded {len(eval_dataset)} examples from {args.split} split")
+    
+    # Limit number of samples if specified
+    if args.max_samples is not None and args.max_samples > 0:
+        original_size = len(eval_dataset)
+        eval_dataset = eval_dataset[:args.max_samples]
+        logger.info(f"Limited to {len(eval_dataset)} examples (from {original_size} total in {args.split} split)")
+    else:
+        logger.info(f"Loaded {len(eval_dataset)} examples from {args.split} split")
     
     # Evaluate all models
     all_results = {}
