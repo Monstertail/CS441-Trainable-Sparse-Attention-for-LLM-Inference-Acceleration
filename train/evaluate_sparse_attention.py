@@ -111,6 +111,16 @@ def evaluate_model(
             else:
                 continue
             
+            # Get device
+            if hasattr(model, 'base_model'):
+                # Sparse attention model
+                device = model.base_model.device
+                gen_model = model.base_model
+            else:
+                # Base model
+                device = next(model.parameters()).device
+                gen_model = model
+            
             # Tokenize
             inputs = tokenizer(
                 input_text,
@@ -118,10 +128,10 @@ def evaluate_model(
                 padding=True,
                 truncation=True,
                 max_length=1024
-            ).to(model.base_model.device)
+            ).to(device)
             
             # Generate
-            outputs = model.base_model.generate(
+            outputs = gen_model.generate(
                 **inputs,
                 max_new_tokens=max_new_tokens,
                 temperature=temperature if temperature > 0 else None,
@@ -185,8 +195,13 @@ def main():
     parser.add_argument(
         '--adapter_path',
         type=str,
-        required=True,
-        help='Path to trained sparse attention adapters'
+        default=None,
+        help='Path to trained sparse attention adapters (if None, only evaluate base model)'
+    )
+    parser.add_argument(
+        '--compare_base',
+        action='store_true',
+        help='Also evaluate base model for comparison'
     )
     parser.add_argument(
         '--task_name',
@@ -231,34 +246,54 @@ def main():
     
     logger.info(f"Arguments: {args.__dict__}")
     
-    # Load model
-    logger.info(f"Loading model from {args.model_id}...")
-    
-    # Load training config if available
-    config_path = os.path.join(args.adapter_path, 'training_config.json')
-    if os.path.exists(config_path):
-        with open(config_path, 'r') as f:
-            training_config = json.load(f)
-            sparse_attn_config = training_config.get('sparse_attn_config', {})
-            logger.info(f"Loaded sparse attention config: {sparse_attn_config}")
-    else:
-        sparse_attn_config = None
-        logger.warning("No training config found, using default sparse attention config")
-    
-    model = LlamaWithSparseAttention(
-        model_id=args.model_id,
-        sparse_attn_config=sparse_attn_config,
-        device_map='auto',
-    )
-    
-    # Load trained adapters
-    logger.info(f"Loading adapters from {args.adapter_path}...")
-    model.load_adapters(args.adapter_path)
-    
     # Load tokenizer
     tokenizer = AutoTokenizer.from_pretrained(args.model_id)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
+    
+    # Decide which models to evaluate
+    models_to_eval = {}
+    
+    # Load base model if requested or if no adapter
+    if args.compare_base or args.adapter_path is None:
+        logger.info(f"Loading base model from {args.model_id}...")
+        from transformers import AutoModelForCausalLM
+        base_model = AutoModelForCausalLM.from_pretrained(
+            args.model_id,
+            torch_dtype=torch.bfloat16,
+            device_map='auto',
+        )
+        base_model.eval()
+        models_to_eval['base'] = base_model
+        logger.info(f"✅ Loaded base model")
+    
+    # Load sparse attention model if adapter provided
+    if args.adapter_path is not None:
+        logger.info(f"Loading sparse attention model from {args.model_id}...")
+        
+        # Load training config if available
+        config_path = os.path.join(args.adapter_path, 'training_config.json')
+        if os.path.exists(config_path):
+            with open(config_path, 'r') as f:
+                training_config = json.load(f)
+                sparse_attn_config = training_config.get('sparse_attn_config', {})
+                logger.info(f"Loaded sparse attention config: {sparse_attn_config}")
+        else:
+            sparse_attn_config = None
+            logger.warning("No training config found, using default sparse attention config")
+        
+        sparse_model = LlamaWithSparseAttention(
+            model_id=args.model_id,
+            sparse_attn_config=sparse_attn_config,
+            device_map='auto',
+        )
+        
+        # Load trained adapters
+        logger.info(f"Loading adapters from {args.adapter_path}...")
+        sparse_model.load_adapters(args.adapter_path)
+        sparse_model.eval()
+        models_to_eval['sparse'] = sparse_model
+        logger.info(f"✅ Loaded sparse attention model")
     
     # Load dataset
     logger.info(f"Loading {args.task_name} dataset...")
@@ -277,24 +312,48 @@ def main():
     eval_dataset = db.get_dataset(args.split)
     logger.info(f"Loaded {len(eval_dataset)} examples from {args.split} split")
     
-    # Evaluate
-    logger.info("Starting evaluation...")
-    eval_results = evaluate_model(
-        model=model,
-        tokenizer=tokenizer,
-        dataset=eval_dataset,
-        task_name=args.task_name,
-        max_new_tokens=args.max_new_tokens,
-        temperature=args.temperature,
-    )
+    # Evaluate all models
+    all_results = {}
     
-    # Print results
-    logger.info(f"\n{'='*50}")
-    logger.info(f"Evaluation Results on {args.task_name} ({args.split} split)")
-    logger.info(f"{'='*50}")
-    logger.info(f"Accuracy: {eval_results['accuracy']:.2%}")
-    logger.info(f"Correct: {eval_results['correct']} / {eval_results['total']}")
-    logger.info(f"{'='*50}\n")
+    for model_name, model in models_to_eval.items():
+        logger.info(f"\n{'='*60}")
+        logger.info(f"Evaluating {model_name.upper()} model...")
+        logger.info(f"{'='*60}")
+        
+        eval_results = evaluate_model(
+            model=model,
+            tokenizer=tokenizer,
+            dataset=eval_dataset,
+            task_name=args.task_name,
+            max_new_tokens=args.max_new_tokens,
+            temperature=args.temperature,
+        )
+        
+        all_results[model_name] = eval_results
+        
+        # Print results for this model
+        logger.info(f"\n{'='*50}")
+        logger.info(f"{model_name.upper()} Model Results on {args.task_name} ({args.split} split)")
+        logger.info(f"{'='*50}")
+        logger.info(f"Accuracy: {eval_results['accuracy']:.2%}")
+        logger.info(f"Correct: {eval_results['correct']} / {eval_results['total']}")
+        logger.info(f"{'='*50}\n")
+    
+    # Print comparison if multiple models evaluated
+    if len(all_results) > 1:
+        logger.info(f"\n{'='*60}")
+        logger.info(f"COMPARISON")
+        logger.info(f"{'='*60}")
+        for model_name, results in all_results.items():
+            logger.info(f"{model_name.upper():15s}: {results['accuracy']:.2%} ({results['correct']}/{results['total']})")
+        
+        # Calculate relative improvement
+        if 'base' in all_results and 'sparse' in all_results:
+            base_acc = all_results['base']['accuracy']
+            sparse_acc = all_results['sparse']['accuracy']
+            improvement = sparse_acc - base_acc
+            logger.info(f"{'IMPROVEMENT':15s}: {improvement:+.2%}")
+        logger.info(f"{'='*60}\n")
     
     # Save detailed results
     if args.output_file:
@@ -302,17 +361,24 @@ def main():
         if output_dir:
             os.makedirs(output_dir, exist_ok=True)
         
+        output_data = {
+            'task': args.task_name,
+            'split': args.split,
+            'model_id': args.model_id,
+            'adapter_path': args.adapter_path,
+            'models': {}
+        }
+        
+        for model_name, results in all_results.items():
+            output_data['models'][model_name] = {
+                'accuracy': results['accuracy'],
+                'correct': results['correct'],
+                'total': results['total'],
+                'results': results['results'],
+            }
+        
         with open(args.output_file, 'w') as f:
-            json.dump({
-                'accuracy': eval_results['accuracy'],
-                'correct': eval_results['correct'],
-                'total': eval_results['total'],
-                'task': args.task_name,
-                'split': args.split,
-                'model_id': args.model_id,
-                'adapter_path': args.adapter_path,
-                'results': eval_results['results'],
-            }, f, indent=2)
+            json.dump(output_data, f, indent=2)
         
         logger.info(f"Detailed results saved to {args.output_file}")
 

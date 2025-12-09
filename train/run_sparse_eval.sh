@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Evaluation script for Sparse Attention model
-# Usage: bash run_sparse_eval.sh [adapter_path] [task_name]
+# Usage: bash run_sparse_eval.sh [adapter_path] [task_name] [split] [compare_base]
 
 set -e
 
@@ -9,16 +9,21 @@ set -e
 ADAPTER_PATH=${1:-"./ckpt/sparse_attn_exp1-gsm8k-3epoch-Llama-3.2-1B-sparse"}
 TASK_NAME=${2:-"gsm8k"}
 SPLIT=${3:-"test"}
+COMPARE_BASE=${4:-"true"}  # Set to "true" to also evaluate base model
 
 MODEL_ID="meta-llama/Llama-3.2-1B"
-DATA_PATH="/path/to/data"  # TODO: Update this path
+DATA_PATH="/home/xinyuya2/jinwei/nsa/CS441-Trainable-Sparse-Attention-for-LLM-Inference-Acceleration/train/data/gsm8k"  # TODO: Update this path
 
 # Generation hyperparameters
 MAX_NEW_TOKENS=512
 TEMPERATURE=0.0  # Greedy decoding
 
 # Output
-OUTPUT_FILE="./eval_results/${TASK_NAME}_${SPLIT}_results.json"
+if [ "$COMPARE_BASE" = "true" ]; then
+    OUTPUT_FILE="./eval_results/${TASK_NAME}_${SPLIT}_comparison.json"
+else
+    OUTPUT_FILE="./eval_results/${TASK_NAME}_${SPLIT}_sparse_only.json"
+fi
 
 echo "============================================"
 echo "Evaluating Sparse Attention Model"
@@ -26,9 +31,11 @@ echo "============================================"
 echo "Adapter Path: $ADAPTER_PATH"
 echo "Task: $TASK_NAME"
 echo "Split: $SPLIT"
+echo "Compare with Base: $COMPARE_BASE"
 echo "============================================"
 
-python evaluate_sparse_attention.py \
+# Build command
+CMD="python evaluate_sparse_attention.py \
     --model_id $MODEL_ID \
     --adapter_path $ADAPTER_PATH \
     --task_name $TASK_NAME \
@@ -36,7 +43,15 @@ python evaluate_sparse_attention.py \
     --split $SPLIT \
     --max_new_tokens $MAX_NEW_TOKENS \
     --temperature $TEMPERATURE \
-    --output_file $OUTPUT_FILE
+    --output_file $OUTPUT_FILE"
+
+# Add --compare_base flag if requested
+if [ "$COMPARE_BASE" = "true" ]; then
+    CMD="$CMD --compare_base"
+fi
+
+# Run evaluation
+eval $CMD
 
 echo ""
 echo "============================================"
