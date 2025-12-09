@@ -6,6 +6,10 @@ Following softCoT's pipeline for GSM8K and other reasoning tasks
 import argparse
 from tqdm import tqdm
 import os
+import sys
+
+# Add parent directory to path to import sparse_attention module
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 import torch
 import pandas as pd
@@ -15,8 +19,7 @@ from transformers import AutoTokenizer, TrainingArguments, Trainer
 from fastNLP import logger
 
 from data_loader import GSM8KLoader, StrategyQALoader, AugASDivLoader, AQuALoader
-from sparse_attention_model import LlamaWithSparseAttention
-from sparse_distillation_model import SparseDistillationModel
+from sparse_attention import LlamaWithSparseAttention, SparseDistillationModel
 from utils import pre_process_gsm8k, pre_process_strategy_qa, pre_process_aqua, CustomDataCollator
 
 

@@ -5,15 +5,21 @@ Evaluation script for Sparse Attention model
 import argparse
 import json
 import os
+import sys
 from tqdm import tqdm
 import re
+
+# Add parent directory to path to import sparse_attention module
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+# Add train directory to path to import data_loader and utils
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'train'))
 
 import torch
 from transformers import AutoTokenizer
 from fastNLP import logger
 
 from data_loader import GSM8KLoader, StrategyQALoader, AugASDivLoader, AQuALoader
-from sparse_attention_model import LlamaWithSparseAttention
+from sparse_attention import LlamaWithSparseAttention
 
 
 def extract_answer_gsm8k(text):
@@ -112,14 +118,10 @@ def evaluate_model(
                 continue
             
             # Get device
-            if hasattr(model, 'base_model'):
-                # Sparse attention model
-                device = model.base_model.device
-                gen_model = model.base_model
+            if hasattr(model, 'device'):
+                device = model.device
             else:
-                # Base model
                 device = next(model.parameters()).device
-                gen_model = model
             
             # Tokenize
             inputs = tokenizer(
@@ -131,10 +133,13 @@ def evaluate_model(
             ).to(device)
             
             # Generate
-            outputs = gen_model.generate(
+            # Now both LlamaWithSparseAttention and base model have generate() method
+            # LlamaWithSparseAttention.generate() uses sparse attention adapters!
+            # (See sparse_attention_model.py for implementation)
+            outputs = model.generate(
                 **inputs,
                 max_new_tokens=max_new_tokens,
-                temperature=temperature if temperature > 0 else None,
+                temperature=temperature if temperature > 0 else 1.0,
                 do_sample=temperature > 0,
                 pad_token_id=tokenizer.pad_token_id,
                 eos_token_id=tokenizer.eos_token_id,

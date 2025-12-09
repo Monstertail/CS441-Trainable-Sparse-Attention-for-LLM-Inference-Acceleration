@@ -5,14 +5,15 @@
 
 set -e
 
-# Arguments
-ADAPTER_PATH=${1:-"./ckpt/sparse_attn_exp1-gsm8k-3epoch-Llama-3.2-1B-sparse"}
+# Arguments (use relative paths from evaluation/ directory)
+# Default: use the most recent checkpoint from train/ckpt or train/results
+ADAPTER_PATH=${1:-"../train/ckpt/sparse_attn_exp1-gsm8k-3.0epoch-Llama-3.2-1B-Instruct-sparse"}
 TASK_NAME=${2:-"gsm8k"}
 SPLIT=${3:-"test"}
 COMPARE_BASE=${4:-"true"}  # Set to "true" to also evaluate base model
 
-MODEL_ID="meta-llama/Llama-3.2-1B"
-DATA_PATH="/home/xinyuya2/jinwei/nsa/CS441-Trainable-Sparse-Attention-for-LLM-Inference-Acceleration/train/data/gsm8k"  # TODO: Update this path
+MODEL_ID="meta-llama/Llama-3.2-1B-Instruct"
+DATA_PATH=${DATA_PATH:-"../train/data/gsm8k"}  # Relative path from evaluation/
 
 # Generation hyperparameters
 MAX_NEW_TOKENS=512

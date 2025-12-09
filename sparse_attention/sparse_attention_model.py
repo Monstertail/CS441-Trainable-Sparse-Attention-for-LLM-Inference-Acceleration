@@ -286,7 +286,8 @@ class SparseAttentionAdapter(nn.Module):
         q,     # [batch, num_heads, seq_len, dim_head]
         ck,    # compressed k [batch, num_kv_heads, num_blocks, dim_head]
         cv,    # compressed v [batch, num_kv_heads, num_blocks, dim_head]
-        scale
+        scale,
+        attention_mask=None  # [batch, seq_len] - for future use if needed
     ):
         """Compute coarse-grained attention over compressed KV"""
         batch_size = q.shape[0]
@@ -307,6 +308,34 @@ class SparseAttentionAdapter(nn.Module):
         
         # Compute attention
         sim = torch.einsum('bhid,bhjd->bhij', q, ck) * scale
+        
+        # Apply causal mask for compressed attention (following NSA's design)
+        # CRITICAL: Block must be STRICTLY in the past (block_end < query_pos)
+        # This ensures no future information leakage through compressed blocks
+        seq_len = q.shape[2]
+        num_compress_blocks = ck.shape[2] - self.num_mem_tokens  # Exclude memory tokens
+        
+        if num_compress_blocks > 0:
+            # Query positions: [0, 1, 2, ..., seq_len-1]
+            query_positions = torch.arange(seq_len, device=q.device)  # [seq_len]
+            
+            # Compressed block end positions (last token in each block)
+            # Block i ends at: (i+1) * block_size - 1
+            block_end_positions = torch.arange(1, num_compress_blocks + 1, device=q.device) * self.compress_block_size - 1
+            
+            # Causal mask: block_end < query_position (STRICT <, following NSA!)
+            # This means: block must be completely finished before query position
+            # query_positions: [seq_len, 1], block_end_positions: [1, num_blocks]
+            causal_mask = block_end_positions[None, :] < query_positions[:, None]  # [seq_len, num_blocks]
+            
+            # Memory tokens are always visible (prepended, with position -1)
+            mem_mask = torch.ones(seq_len, self.num_mem_tokens, device=q.device, dtype=torch.bool)
+            full_mask = torch.cat([mem_mask, causal_mask], dim=1)  # [seq_len, num_mem + num_blocks]
+            
+            # Apply mask: [batch, heads, seq_len, num_compressed]
+            full_mask = full_mask.unsqueeze(0).unsqueeze(0)  # [1, 1, seq_len, num_compressed]
+            sim = sim.masked_fill(~full_mask, -1e10)
+        
         attn = F.softmax(sim, dim=-1)
         out = torch.einsum('bhij,bhjd->bhid', attn, cv)
         
@@ -396,9 +425,53 @@ class SparseAttentionAdapter(nn.Module):
         # Compute attention over selected blocks
         sim = torch.einsum('bhid,bhijd->bhij', q, selected_k) * scale
         
-        # Mask out zero scores
-        mask = repeat(selected_scores > 1e-10, 'b h q sel -> b (h g) q (sel bs)', g=self.num_grouped_queries, bs=self.selection_block_size)
-        sim = sim.masked_fill(~mask, -1e10)
+        # Apply causal mask for fine attention (CRITICAL!)
+        # Need to ensure selected blocks don't contain future tokens
+        # Each selected block has indices [block_idx * block_size, (block_idx+1) * block_size)
+        
+        # For each query position and each selected block, compute the block's start position
+        # selected_indices: [b, h, q, num_selected] - which blocks are selected
+        # We need to check if the block tokens are before the query position
+        
+        # Create causal mask based on block positions
+        # For simplicity: a token at position i can attend to a block if the block starts at position < i
+        num_selected_tokens = selected_k.shape[3]  # num_selected * block_size
+        
+        # Importance score mask (keep tokens with non-zero importance)
+        importance_mask = repeat(
+            selected_scores > 1e-10, 
+            'b h q sel -> b (h g) q (sel bs)', 
+            g=self.num_grouped_queries, 
+            bs=self.selection_block_size
+        )
+        
+        # Causal mask: For each query position, mask out tokens from selected blocks that are in the future
+        # This is conservative: we compute per-token causal constraint
+        # selected_indices: [b, h, q, num_selected] gives block indices
+        # Convert to token positions and create causal mask
+        
+        # Get block start positions for selected blocks
+        block_start_positions = selected_indices * self.selection_block_size  # [b, h, q, num_selected]
+        
+        # Expand to per-token positions within each block
+        # Token j in block i is at position: block_start + j
+        token_offsets = torch.arange(self.selection_block_size, device=q.device)  # [block_size]
+        token_positions = block_start_positions.unsqueeze(-1) + token_offsets  # [b, h, q, sel, bs]
+        token_positions = rearrange(token_positions, 'b h q sel bs -> b h q (sel bs)')  # [b, h, q, num_tokens]
+        
+        # Query positions
+        query_positions = torch.arange(seq_len, device=q.device)  # [seq_len]
+        query_positions = query_positions.view(1, 1, -1, 1)  # [1, 1, seq_len, 1]
+        
+        # Causal constraint: token_position <= query_position
+        causal_mask = token_positions <= query_positions  # [b, h, q, num_tokens]
+        
+        # Expand for GQA
+        causal_mask = repeat(causal_mask, 'b h ... -> b (h g) ...', g=self.num_grouped_queries)
+        
+        # Combine importance and causal masks
+        final_mask = importance_mask & causal_mask
+        sim = sim.masked_fill(~final_mask, -1e10)
         
         attn = F.softmax(sim, dim=-1)
         out = torch.einsum('bhij,bhijd->bhid', attn, selected_v)
@@ -461,7 +534,7 @@ class SparseAttentionAdapter(nn.Module):
             print(f"{'='*60}\n")
         
         compressed_out, importance_scores = self.compute_compressed_attention(
-            q, ck, cv, scale
+            q, ck, cv, scale, attention_mask
         )
         
         # 2. Fine attention branch (based on importance from compressed)
@@ -469,28 +542,35 @@ class SparseAttentionAdapter(nn.Module):
             q, k_kv, v_kv, importance_scores, scale
         )
         
-        # 3. Sliding window branch (computed by base model's attention)
-        # We'll use the original attention output as sliding window proxy
-        # For true sliding window, you'd need to modify base model's attention_mask
+        # 3. Sliding window branch
+        # Each position attends to itself and the previous window_size-1 tokens
+        # This is the standard causal sliding window attention
         
-        # Compute sliding window attention (simplified version)
-        # Create sliding window mask
-        causal_mask = torch.triu(
-            torch.ones(seq_len, seq_len, device=q.device, dtype=torch.bool),
-            diagonal=1
-        )
-        window_mask = torch.triu(
-            torch.ones(seq_len, seq_len, device=q.device, dtype=torch.bool),
-            diagonal=-self.sliding_window_size
-        )
-        sliding_mask = ~(causal_mask | window_mask)
+        # Create sliding window mask (vectorized)
+        # Position i attends to positions in range [max(0, i-window_size+1), i]
+        row_indices = torch.arange(seq_len, device=q.device)[:, None]  # [seq_len, 1]
+        col_indices = torch.arange(seq_len, device=q.device)[None, :]  # [1, seq_len]
+        
+        # Causal: col <= row (only attend to past and present)
+        # Window: col > row - window_size (not too far in the past)
+        sliding_mask = (col_indices <= row_indices) & (col_indices > row_indices - self.sliding_window_size)
         
         # Compute sliding window attention
         k_full = repeat(k_kv, 'b h ... -> b (h g) ...', g=self.num_grouped_queries)
         v_full = repeat(v_kv, 'b h ... -> b (h g) ...', g=self.num_grouped_queries)
         
         sim = torch.einsum('bhid,bhjd->bhij', q, k_full) * scale
+        
+        # Apply sliding window mask
         sim = sim.masked_fill(~sliding_mask.unsqueeze(0).unsqueeze(0), -1e10)
+        
+        # Apply attention_mask if provided (mask out padding tokens)
+        if attention_mask is not None:
+            # attention_mask: [batch, seq_len] with 1 for real tokens, 0 for padding
+            # Expand to [batch, 1, 1, seq_len] for broadcasting
+            expanded_mask = attention_mask[:, None, None, :].bool()
+            sim = sim.masked_fill(~expanded_mask, -1e10)
+        
         attn = F.softmax(sim, dim=-1)
         sliding_out = torch.einsum('bhij,bhjd->bhid', attn, v_full)
         
@@ -812,6 +892,128 @@ class LlamaWithSparseAttention(nn.Module):
         self.zero_grad()
         
         return adapter_grads
+    
+    @torch.no_grad()
+    def generate(
+        self,
+        input_ids=None,
+        attention_mask=None,
+        max_new_tokens=50,
+        temperature=1.0,
+        do_sample=False,
+        top_k=None,
+        top_p=None,
+        pad_token_id=None,
+        eos_token_id=None,
+        **kwargs
+    ):
+        """
+        Generate method using sparse attention
+        
+        This implements autoregressive generation with sparse attention adapters.
+        
+        Args:
+            input_ids: [batch, seq_len]
+            attention_mask: [batch, seq_len]
+            max_new_tokens: Maximum number of tokens to generate
+            temperature: Sampling temperature
+            do_sample: Whether to use sampling (True) or greedy (False)
+            top_k: Top-k sampling
+            top_p: Top-p (nucleus) sampling
+            pad_token_id: Pad token ID
+            eos_token_id: EOS token ID
+        
+        Returns:
+            generated_ids: [batch, seq_len + generated_length]
+        """
+        self.eval()
+        
+        # Ensure inputs are on correct device
+        if input_ids.device != self.device:
+            input_ids = input_ids.to(self.device)
+        if attention_mask is not None and attention_mask.device != self.device:
+            attention_mask = attention_mask.to(self.device)
+        
+        batch_size, cur_len = input_ids.shape
+        
+        # Initialize attention mask if not provided
+        if attention_mask is None:
+            attention_mask = torch.ones_like(input_ids)
+        
+        # Set default pad/eos tokens
+        if pad_token_id is None:
+            pad_token_id = self.config.pad_token_id or 0
+        if eos_token_id is None:
+            eos_token_id = self.config.eos_token_id
+        
+        # Track which sequences are done
+        unfinished_sequences = torch.ones(batch_size, dtype=torch.long, device=self.device)
+        
+        # Autoregressive generation loop
+        for _ in range(max_new_tokens):
+            # Forward pass with current sequence (uses sparse attention!)
+            outputs = self.forward(
+                input_ids=input_ids,
+                attention_mask=attention_mask,
+                output_hidden_states=False,
+                return_dict=True,
+            )
+            
+            # Get logits for next token (last position)
+            next_token_logits = outputs.logits[:, -1, :]  # [batch, vocab_size]
+            
+            # Apply temperature
+            if temperature != 1.0:
+                next_token_logits = next_token_logits / temperature
+            
+            # Sample or greedy
+            if do_sample:
+                # Apply top-k filtering
+                if top_k is not None and top_k > 0:
+                    indices_to_remove = next_token_logits < torch.topk(next_token_logits, top_k)[0][..., -1, None]
+                    next_token_logits[indices_to_remove] = -float('Inf')
+                
+                # Apply top-p (nucleus) filtering
+                if top_p is not None and top_p < 1.0:
+                    sorted_logits, sorted_indices = torch.sort(next_token_logits, descending=True)
+                    cumulative_probs = torch.cumsum(F.softmax(sorted_logits, dim=-1), dim=-1)
+                    
+                    # Remove tokens with cumulative probability above the threshold
+                    sorted_indices_to_remove = cumulative_probs > top_p
+                    # Shift the indices to the right to keep also the first token above the threshold
+                    sorted_indices_to_remove[..., 1:] = sorted_indices_to_remove[..., :-1].clone()
+                    sorted_indices_to_remove[..., 0] = 0
+                    
+                    # Scatter sorted tensors back to original indexing
+                    indices_to_remove = sorted_indices_to_remove.scatter(1, sorted_indices, sorted_indices_to_remove)
+                    next_token_logits[indices_to_remove] = -float('Inf')
+                
+                # Sample from distribution
+                probs = F.softmax(next_token_logits, dim=-1)
+                next_tokens = torch.multinomial(probs, num_samples=1).squeeze(1)
+            else:
+                # Greedy decoding
+                next_tokens = torch.argmax(next_token_logits, dim=-1)
+            
+            # Update sequences
+            next_tokens = next_tokens * unfinished_sequences + pad_token_id * (1 - unfinished_sequences)
+            input_ids = torch.cat([input_ids, next_tokens.unsqueeze(-1)], dim=-1)
+            
+            # Update attention mask
+            attention_mask = torch.cat([
+                attention_mask,
+                torch.ones((batch_size, 1), dtype=attention_mask.dtype, device=self.device)
+            ], dim=-1)
+            
+            # Check for EOS
+            if eos_token_id is not None:
+                unfinished_sequences = unfinished_sequences * (next_tokens != eos_token_id).long()
+            
+            # Stop if all sequences are finished
+            if unfinished_sequences.max() == 0:
+                break
+        
+        return input_ids
 
 
 if __name__ == "__main__":

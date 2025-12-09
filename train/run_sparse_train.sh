@@ -20,7 +20,7 @@ BATCH_SIZE=2  # Small batch for memory efficiency
 GRAD_ACCUM=16   # Reduced from 16 for more frequent updates (better for distillation)
 # Effective batch = 2 × 4 = 8 (smaller but more stable for distillation)
 N_EPOCHS=3
-LR=1e-5  # Further reduced for stability (large grad_norm observed)
+LR=5e-5  # Further reduced for stability (large grad_norm observed)
 WARMUP_RATIO=0.2  # Increased from 0.1 for more stable training
 
 # Wandb configuration

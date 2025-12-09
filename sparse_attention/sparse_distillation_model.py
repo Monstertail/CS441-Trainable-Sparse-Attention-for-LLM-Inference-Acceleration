@@ -6,7 +6,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from transformers import AutoModelForCausalLM, AutoConfig
-from sparse_attention_model import LlamaWithSparseAttention
+from .sparse_attention_model import LlamaWithSparseAttention
 from fastNLP import logger
 
 
@@ -324,6 +324,13 @@ class SparseDistillationModel(nn.Module):
                 output.ce_loss = ce_loss.item()
         
         return output
+    
+    def save_pretrained(self, save_dir, **kwargs):
+        """
+        Custom save for Trainer compatibility - only save trainable student adapters
+        This is called by Trainer during checkpointing (every epoch)
+        """
+        self.save_student(save_dir)
     
     def save_student(self, save_dir):
         """Save only the trainable sparse adapters from student model"""
