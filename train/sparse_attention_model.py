@@ -191,6 +191,10 @@ class SparseAttentionAdapter(nn.Module):
         # merge_heads: [b, h, n, d] -> [b, n, h*d]
         # combine_heads: [b, n, h*d] -> [b, n, hidden_size]
         self.combine_heads = nn.Linear(num_heads * self.dim_head, hidden_size, bias=False)
+        
+        # Initialize combine_heads to near-identity for stable training
+        # Start with small random weights so adapter output ≈ 0 initially
+        nn.init.normal_(self.combine_heads.weight, mean=0.0, std=0.02)
     
     def compute_compressed_attention(
         self,

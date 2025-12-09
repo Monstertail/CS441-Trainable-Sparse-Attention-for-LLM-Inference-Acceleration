@@ -28,35 +28,12 @@ class SparseDistillationModel(nn.Module):
     ):
         super().__init__()
         
-        logger.info(f"🔧 Creating Sparse Distillation Model (like softCoT)")
-        logger.info(f"  Using device_map='auto' - both models on same device")
+        logger.info(f"🔧 Creating Sparse Distillation Model (optimized - shared base model)")
+        logger.info(f"  Using device_map='auto'")
         
-        # 1. Load teacher model (frozen, full attention)
-        logger.info(f"📦 Loading teacher model...")
+        # Load student model with sparse adapters (contains base model)
+        logger.info(f"📦 Loading model with sparse attention adapters...")
         
-        # Use 'auto' device_map like softCoT - let accelerate manage devices
-        # Both models will be placed on same device automatically
-        self.teacher_model = AutoModelForCausalLM.from_pretrained(
-            model_id,
-            torch_dtype=torch.bfloat16,
-            device_map='auto',
-        )
-        
-        # Enable gradient checkpointing for teacher (saves memory even though frozen)
-        if hasattr(self.teacher_model, 'gradient_checkpointing_enable'):
-            self.teacher_model.gradient_checkpointing_enable()
-            logger.info(f"✅ Enabled gradient checkpointing for teacher")
-        
-        # Freeze all teacher parameters
-        for param in self.teacher_model.parameters():
-            param.requires_grad = False
-        
-        logger.info(f"✅ Teacher model loaded and frozen")
-        
-        # 2. Load student model (trainable sparse adapters)
-        logger.info(f"📦 Loading student model...")
-        
-        # Use 'auto' device_map like softCoT - same device as teacher
         self.student_model = LlamaWithSparseAttention(
             model_id=model_id,
             sparse_attn_config=sparse_attn_config,
@@ -65,11 +42,16 @@ class SparseDistillationModel(nn.Module):
         
         logger.info(f"✅ Student model loaded")
         
+        # Teacher = base model without adapters (share the same base model!)
+        # No need to load twice - just use student's base model directly
+        self.base_model = self.student_model.base_model
+        logger.info(f"✅ Teacher uses shared base model (no duplicate loading)")
+        
         # Load model config
         self.config = AutoConfig.from_pretrained(model_id)
         
-        # Get actual device (both models should be on same device)
-        self.device = self.teacher_model.device
+        # Get actual device
+        self.device = self.base_model.device
         logger.info(f"📍 Models placed on device: {self.device}")
         
         # Display trainable parameter statistics
@@ -77,15 +59,15 @@ class SparseDistillationModel(nn.Module):
     
     def print_trainable_parameters(self):
         """Print trainable parameter statistics"""
-        teacher_params = sum(p.numel() for p in self.teacher_model.parameters())
-        student_total = sum(p.numel() for p in self.student_model.parameters())
-        student_trainable = sum(p.numel() for p in self.student_model.parameters() if p.requires_grad)
+        base_params = sum(p.numel() for p in self.base_model.parameters())
+        adapter_params = sum(p.numel() for p in self.student_model.sparse_adapters.parameters())
         
         logger.info(f"\n📊 Parameter Statistics:")
-        logger.info(f"  Teacher (frozen): {teacher_params:,}")
-        logger.info(f"  Student total: {student_total:,}")
-        logger.info(f"  Student trainable: {student_trainable:,}")
-        logger.info(f"  Trainable ratio: {100 * student_trainable / student_total:.2f}%")
+        logger.info(f"  Base model (frozen, shared): {base_params:,}")
+        logger.info(f"  Sparse adapters (trainable): {adapter_params:,}")
+        logger.info(f"  Total: {base_params + adapter_params:,}")
+        logger.info(f"  Trainable ratio: {100 * adapter_params / (base_params + adapter_params):.2f}%")
+        logger.info(f"  Memory saved: ~{base_params * 2 / 1e9:.2f} GB (by sharing base model)")
     
     def forward(
         self,
@@ -109,11 +91,10 @@ class SparseDistillationModel(nn.Module):
         batch_size, seq_len = input_ids.shape
         
         # No need to move inputs - Trainer handles device placement automatically
-        # Both teacher and student are on the same device (like softCoT)
         
-        # 1. Teacher forward pass (frozen, get layer-wise hidden states)
+        # 1. Teacher forward pass (use shared base model, no adapters)
         with torch.no_grad():
-            teacher_outputs = self.teacher_model(
+            teacher_outputs = self.base_model(
                 input_ids=input_ids,
                 attention_mask=attention_mask,
                 output_hidden_states=True,  # Get intermediate layer outputs
@@ -153,8 +134,15 @@ class SparseDistillationModel(nn.Module):
                 teacher_h = teacher_hidden_states[layer_idx]
                 student_h = student_hidden_states[layer_idx]
                 
-                # MSE loss between corresponding layers
-                layer_loss = F.mse_loss(student_h, teacher_h.detach())
+                # Use cosine similarity loss (more stable than MSE for large hidden states)
+                # Normalize to [-1, 1] range then convert to [0, 2] loss
+                cos_sim = F.cosine_similarity(
+                    student_h.view(-1, student_h.size(-1)),
+                    teacher_h.detach().view(-1, teacher_h.size(-1)),
+                    dim=-1
+                )
+                # Loss = 1 - cos_sim, so perfect match = 0, opposite = 2
+                layer_loss = (1 - cos_sim).mean()
                 distill_loss += layer_loss
                 num_layers += 1
         

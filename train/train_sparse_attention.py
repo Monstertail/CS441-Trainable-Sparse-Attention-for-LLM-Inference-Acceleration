@@ -405,7 +405,7 @@ def main():
         learning_rate=args.learning_rate,
         warmup_ratio=args.warmup_ratio,
         weight_decay=args.weight_decay,
-        max_grad_norm=1.0,
+        max_grad_norm=0.1,  # Very strict clipping (saw grad_norm > 1000)
         
         # Precision
         bf16=True,
