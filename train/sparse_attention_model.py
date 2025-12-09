@@ -12,11 +12,29 @@ from einops import rearrange, repeat, reduce
 from fastNLP import logger
 
 
+# RMSNorm implementation (following Native Sparse Attention)
+try:
+    RMSNorm = nn.RMSNorm
+except AttributeError:
+    class RMSNorm(nn.Module):
+        """Root Mean Square Layer Normalization (from Native Sparse Attention)"""
+        def __init__(self, dim: int, eps: float = 1e-8):
+            super().__init__()
+            self.eps = eps
+            self.scale = nn.Parameter(torch.ones(dim))
+            self.dim = dim
+        
+        def forward(self, x: torch.Tensor):
+            norm = x.pow(2).mean(-1, keepdim=True).add(self.eps).rsqrt()
+            return x * norm * self.scale
+
+
 class MaxPoolCompress(nn.Module):
     """
-    Coarse-grained compression using max pooling
+    Coarse-grained compression using max pooling (following Native Sparse Attention design)
     - Selects most salient feature in each block
-    - Good for capturing peaks/important signals
+    - No positional embeddings (position info already in K/V from RoPE)
+    - Includes RMSNorm for stability (like NSA)
     """
     def __init__(self, num_heads, dim_head, block_size):
         super().__init__()
@@ -24,8 +42,8 @@ class MaxPoolCompress(nn.Module):
         self.num_heads = num_heads
         self.dim_head = dim_head
         
-        # Learnable intra-block positional embeddings
-        self.pos_emb = nn.Parameter(torch.zeros(num_heads, block_size, dim_head))
+        # RMSNorm for stability (following Native Sparse Attention)
+        self.norm = RMSNorm(dim_head)
         
     def forward(self, kv):
         """
@@ -46,21 +64,23 @@ class MaxPoolCompress(nn.Module):
         # Reshape to blocks: [b, h, n_blocks, block_size, d]
         kv_blocks = kv_truncated.reshape(b, h, n_blocks, self.block_size, d)
         
-        # Add positional information
-        kv_blocks = kv_blocks + self.pos_emb.unsqueeze(0).unsqueeze(2)
-        
         # Max pooling over block dimension
         compressed = kv_blocks.max(dim=3)[0]  # [b, h, n_blocks, d]
+        
+        # Apply normalization (following Native Sparse Attention)
+        compressed = self.norm(compressed)
         
         return compressed
 
 
 class MeanPoolCompress(nn.Module):
     """
-    Coarse-grained compression using mean pooling
+    Coarse-grained compression using mean pooling (inspired by Native Sparse Attention's AvgPoolCompression)
     - Averages all features in each block
     - Good for capturing overall context/semantics
     - Generally more stable than max pooling for distillation
+    - No positional embeddings (position info already in K/V from RoPE)
+    - Includes RMSNorm for stability (like NSA)
     """
     def __init__(self, num_heads, dim_head, block_size):
         super().__init__()
@@ -68,8 +88,8 @@ class MeanPoolCompress(nn.Module):
         self.num_heads = num_heads
         self.dim_head = dim_head
         
-        # Learnable intra-block positional embeddings
-        self.pos_emb = nn.Parameter(torch.zeros(num_heads, block_size, dim_head))
+        # RMSNorm for stability (following Native Sparse Attention)
+        self.norm = RMSNorm(dim_head)
         
     def forward(self, kv):
         """
@@ -90,18 +110,21 @@ class MeanPoolCompress(nn.Module):
         # Reshape to blocks: [b, h, n_blocks, block_size, d]
         kv_blocks = kv_truncated.reshape(b, h, n_blocks, self.block_size, d)
         
-        # Add positional information
-        kv_blocks = kv_blocks + self.pos_emb.unsqueeze(0).unsqueeze(2)
-        
         # Mean pooling over block dimension
         compressed = kv_blocks.mean(dim=3)  # [b, h, n_blocks, d]
+        
+        # Apply normalization (following Native Sparse Attention)
+        compressed = self.norm(compressed)
         
         return compressed
 
 
 class MLPCompress(nn.Module):
     """
-    Learnable MLP-based compression (similar to Native Sparse Attention)
+    Learnable MLP-based compression (inspired by Native Sparse Attention's GroupedMLP)
+    - Uses per-head MLPs for flexible compression
+    - No positional embeddings (position info already in K/V from RoPE)
+    - Includes RMSNorm for stability (like NSA)
     """
     def __init__(self, num_heads, dim_head, block_size, expand_factor=1.0):
         super().__init__()
@@ -112,10 +135,7 @@ class MLPCompress(nn.Module):
         dim_in = block_size * dim_head
         dim_hidden = max(int(dim_in * expand_factor), dim_head)
         
-        # Intra-block positional embeddings
-        self.pos_emb = nn.Parameter(torch.zeros(num_heads, block_size, dim_head))
-        
-        # Per-head compression MLPs
+        # Per-head compression MLPs (following NSA's design)
         self.compress_mlps = nn.ModuleList([
             nn.Sequential(
                 nn.Linear(dim_in, dim_hidden, bias=False),
@@ -123,6 +143,9 @@ class MLPCompress(nn.Module):
                 nn.Linear(dim_hidden, dim_head, bias=False)
             ) for _ in range(num_heads)
         ])
+        
+        # RMSNorm for stability (following Native Sparse Attention)
+        self.norm = RMSNorm(dim_head)
         
     def forward(self, kv):
         """
@@ -143,9 +166,6 @@ class MLPCompress(nn.Module):
         # Reshape to blocks
         kv_blocks = kv_truncated.reshape(b, h, n_blocks, self.block_size, d)
         
-        # Add positional information
-        kv_blocks = kv_blocks + self.pos_emb.unsqueeze(0).unsqueeze(2)
-        
         # Flatten block dimension: [b, h, n_blocks, block_size * d]
         kv_flat = kv_blocks.reshape(b, h, n_blocks, -1)
         
@@ -156,6 +176,9 @@ class MLPCompress(nn.Module):
             compressed.append(head_compressed)
         
         compressed = torch.stack(compressed, dim=1)  # [b, h, n_blocks, d]
+        
+        # Apply normalization (following Native Sparse Attention)
+        compressed = self.norm(compressed)
         
         return compressed
 
