@@ -37,8 +37,8 @@ COMPRESS_STRIDE=8
 SELECTION_BLOCK_SIZE=16
 NUM_SELECTED_BLOCKS=8
 SLIDING_WINDOW_SIZE=64
-K_COMPRESS_METHOD="max_pool"  # or "mlp" (default: max_pool for efficiency)
-V_COMPRESS_METHOD="mlp"       # or "max_pool" (default: mlp for better learning)
+K_COMPRESS_METHOD="mean_pool"  # Options: max_pool, mean_pool, mlp (mean_pool is more stable)
+V_COMPRESS_METHOD="mean_pool"  # Options: max_pool, mean_pool, mlp (mean_pool for distillation)
 
 echo "============================================"
 echo "Training Sparse Attention Model with Distillation"

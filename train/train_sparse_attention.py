@@ -130,16 +130,16 @@ def parse_args():
     parser.add_argument(
         '--k_compress_method',
         type=str,
-        choices=['max_pool', 'mlp'],
-        default='max_pool',
-        help='Compression method for K (default: max_pool for efficiency)'
+        choices=['max_pool', 'mean_pool', 'mlp'],
+        default='mean_pool',
+        help='Compression method for K (default: mean_pool for stability)'
     )
     parser.add_argument(
         '--v_compress_method',
         type=str,
-        choices=['max_pool', 'mlp'],
-        default='max_pool',
-        help='Compression method for V (default: max_pool for efficiency)'
+        choices=['max_pool', 'mean_pool', 'mlp'],
+        default='mean_pool',
+        help='Compression method for V (default: mean_pool for stability)'
     )
     
     # Distillation and device args

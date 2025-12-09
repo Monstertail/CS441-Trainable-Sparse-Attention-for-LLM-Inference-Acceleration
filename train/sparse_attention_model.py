@@ -15,6 +15,8 @@ from fastNLP import logger
 class MaxPoolCompress(nn.Module):
     """
     Coarse-grained compression using max pooling
+    - Selects most salient feature in each block
+    - Good for capturing peaks/important signals
     """
     def __init__(self, num_heads, dim_head, block_size):
         super().__init__()
@@ -49,6 +51,50 @@ class MaxPoolCompress(nn.Module):
         
         # Max pooling over block dimension
         compressed = kv_blocks.max(dim=3)[0]  # [b, h, n_blocks, d]
+        
+        return compressed
+
+
+class MeanPoolCompress(nn.Module):
+    """
+    Coarse-grained compression using mean pooling
+    - Averages all features in each block
+    - Good for capturing overall context/semantics
+    - Generally more stable than max pooling for distillation
+    """
+    def __init__(self, num_heads, dim_head, block_size):
+        super().__init__()
+        self.block_size = block_size
+        self.num_heads = num_heads
+        self.dim_head = dim_head
+        
+        # Learnable intra-block positional embeddings
+        self.pos_emb = nn.Parameter(torch.zeros(num_heads, block_size, dim_head))
+        
+    def forward(self, kv):
+        """
+        Args:
+            kv: [batch, num_heads, seq_len, dim_head]
+        Returns:
+            compressed: [batch, num_heads, num_blocks, dim_head]
+        """
+        b, h, n, d = kv.shape
+        
+        # Truncate to multiple of block_size
+        n_blocks = n // self.block_size
+        if n_blocks == 0:
+            return torch.zeros(b, h, 0, d, device=kv.device, dtype=kv.dtype)
+        
+        kv_truncated = kv[:, :, :n_blocks * self.block_size, :]
+        
+        # Reshape to blocks: [b, h, n_blocks, block_size, d]
+        kv_blocks = kv_truncated.reshape(b, h, n_blocks, self.block_size, d)
+        
+        # Add positional information
+        kv_blocks = kv_blocks + self.pos_emb.unsqueeze(0).unsqueeze(2)
+        
+        # Mean pooling over block dimension
+        compressed = kv_blocks.mean(dim=3)  # [b, h, n_blocks, d]
         
         return compressed
 
@@ -132,8 +178,8 @@ class SparseAttentionAdapter(nn.Module):
         selection_block_size=16,
         num_selected_blocks=4,
         sliding_window_size=64,
-        k_compress_method='max_pool',  # 'max_pool' or 'mlp'
-        v_compress_method='max_pool',  # 'max_pool' or 'mlp' (changed to max_pool for efficiency)
+        k_compress_method='mean_pool',  # 'max_pool', 'mean_pool', or 'mlp'
+        v_compress_method='mean_pool',  # 'max_pool', 'mean_pool', or 'mlp'
     ):
         super().__init__()
         
@@ -149,22 +195,30 @@ class SparseAttentionAdapter(nn.Module):
         self.num_selected_blocks = num_selected_blocks
         self.sliding_window_size = sliding_window_size
         
-        # K compression (max pooling by default for efficiency)
+        # K compression (support max_pool, mean_pool, mlp)
         if k_compress_method == 'max_pool':
             self.k_compress = MaxPoolCompress(
                 num_kv_heads, self.dim_head, compress_block_size
             )
-        else:
+        elif k_compress_method == 'mean_pool':
+            self.k_compress = MeanPoolCompress(
+                num_kv_heads, self.dim_head, compress_block_size
+            )
+        else:  # mlp
             self.k_compress = MLPCompress(
                 num_kv_heads, self.dim_head, compress_block_size, expand_factor=1.0
             )
         
-        # V compression (max pooling by default for efficiency)
+        # V compression (support max_pool, mean_pool, mlp)
         if v_compress_method == 'max_pool':
             self.v_compress = MaxPoolCompress(
                 num_kv_heads, self.dim_head, compress_block_size
             )
-        else:
+        elif v_compress_method == 'mean_pool':
+            self.v_compress = MeanPoolCompress(
+                num_kv_heads, self.dim_head, compress_block_size
+            )
+        else:  # mlp
             self.v_compress = MLPCompress(
                 num_kv_heads, self.dim_head, compress_block_size, expand_factor=1.0
             )
@@ -455,8 +509,8 @@ class LlamaWithSparseAttention(nn.Module):
                 'selection_block_size': 16,
                 'num_selected_blocks': 8,
                 'sliding_window_size': 64,
-                'k_compress_method': 'max_pool',
-                'v_compress_method': 'max_pool',  # Changed to max_pool for efficiency
+                'k_compress_method': 'mean_pool',
+                'v_compress_method': 'mean_pool',  # mean_pool is more stable for distillation
             }
         
         # Load frozen base model (use device_map='auto' like softCoT)
