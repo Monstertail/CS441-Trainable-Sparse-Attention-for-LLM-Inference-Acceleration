@@ -92,7 +92,7 @@ class SparseDistillationModel(nn.Module):
         **kwargs
     ):
         """
-        Forward pass with layer-wise distillation
+        Forward pass with (optional) distillation
         
         Args:
             input_ids: Input token IDs [batch, seq_len]
@@ -106,17 +106,22 @@ class SparseDistillationModel(nn.Module):
         
         # No need to move inputs - Trainer handles device placement automatically
         
+        teacher_hidden_states = None
+        teacher_logits = None
+        
         # 1. Teacher forward pass (use shared base model, no adapters)
-        with torch.no_grad():
-            teacher_outputs = self.base_model(
-                input_ids=input_ids,
-                attention_mask=attention_mask,
-                output_hidden_states=True,  # Get intermediate layer outputs
-                use_cache=False,  # Disable KV cache for training (critical!)
-                return_dict=True,
-            )
-            teacher_hidden_states = teacher_outputs.hidden_states  # Tuple of (num_layers+1) tensors
-            teacher_logits = teacher_outputs.logits
+        # Only needed for distillation-based loss modes
+        if self.training and self.loss_mode in ["kl_output_only", "kl_logits", "mse_hidden", "mixed"]:
+            with torch.no_grad():
+                teacher_outputs = self.base_model(
+                    input_ids=input_ids,
+                    attention_mask=attention_mask,
+                    output_hidden_states=True,  # Get intermediate layer outputs
+                    use_cache=False,  # Disable KV cache for training (critical!)
+                    return_dict=True,
+                )
+                teacher_hidden_states = teacher_outputs.hidden_states  # Tuple of (num_layers+1) tensors
+                teacher_logits = teacher_outputs.logits
         
         # 2. Student forward pass (trainable adapters, independent computation)
         # Key: Student processes input independently, like during inference
@@ -269,8 +274,16 @@ class SparseDistillationModel(nn.Module):
                 
                 distill_loss = 0.7 * kl_loss + 0.3 * mse_loss
             
+            elif self.loss_mode == "ce":
+                # Pure cross-entropy training (no distillation)
+                # distill_loss kept as 0.0 for logging
+                distill_loss = torch.tensor(0.0, device=student_logits.device)
+            
             else:
-                raise ValueError(f"Unknown loss_mode: {self.loss_mode}. Choose from: kl_output_only, kl_logits, mse_hidden, mixed")
+                raise ValueError(
+                    f"Unknown loss_mode: {self.loss_mode}. "
+                    f"Choose from: kl_output_only, kl_logits, mse_hidden, mixed, ce"
+                )
         
         # 4. Optional: Add cross-entropy loss if labels are provided
         ce_loss = None
@@ -288,9 +301,13 @@ class SparseDistillationModel(nn.Module):
         
         # 5. Combine losses based on training mode
         if self.training:
-            # For distillation modes, use ONLY distillation loss
-            # CE loss is computed but not used (kept for potential future use)
-            if self.loss_mode in ["kl_output_only", "kl_logits", "mse_hidden"]:
+            # Training-time loss selection
+            if self.loss_mode == "ce":
+                if ce_loss is None:
+                    raise ValueError("ce loss_mode requires labels to be provided!")
+                loss = ce_loss
+            elif self.loss_mode in ["kl_output_only", "kl_logits", "mse_hidden"]:
+                # Pure distillation
                 loss = distill_loss
             elif self.loss_mode == "mixed":
                 # Mixed mode: combine distillation + CE
@@ -299,7 +316,7 @@ class SparseDistillationModel(nn.Module):
                 else:
                     loss = distill_loss
             else:
-                # Default: pure distillation
+                # Default fallback: pure distillation
                 loss = distill_loss
         else:
             # Evaluation mode: use CE loss if available

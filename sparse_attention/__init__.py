@@ -11,32 +11,18 @@ This module provides:
 
 from .sparse_attention_model import (
     RMSNorm,
-    MaxPoolCompress,
-    MeanPoolCompress,
-    MLPCompress,
     SparseAttentionAdapter,
     LlamaWithSparseAttention,
 )
 
-from .sparse_distillation_model import (
-    SparseDistillationModel,
-)
+from .sparse_distillation_model import SparseDistillationModel
 
 __all__ = [
-    # Normalization
     'RMSNorm',
-    
-    # Compression modules
-    'MaxPoolCompress',
-    'MeanPoolCompress',
-    'MLPCompress',
-    
-    # Sparse attention
     'SparseAttentionAdapter',
     'LlamaWithSparseAttention',
-    
-    # Distillation
     'SparseDistillationModel',
+    'native_sparse_attention_pytorch',
 ]
 
 __version__ = '0.1.0'

@@ -11,6 +11,9 @@ from typing import Optional, Tuple
 from einops import rearrange, repeat, reduce
 from fastNLP import logger
 
+# Use the in-repo copy of Native Sparse Attention (under sparse_attention/native_sparse_attention_pytorch)
+from .native_sparse_attention_pytorch.native_sparse_attention import SparseAttention
+
 
 # RMSNorm implementation (following Native Sparse Attention)
 try:
@@ -32,586 +35,93 @@ except AttributeError:
             return (x * norm * self.scale.to(input_dtype)).to(input_dtype)
 
 
-class MaxPoolCompress(nn.Module):
-    """
-    Coarse-grained compression using max pooling (following Native Sparse Attention design)
-    - Selects most salient feature in each block
-    - No positional embeddings (position info already in K/V from RoPE)
-    - Includes RMSNorm for stability (like NSA)
-    """
-    def __init__(self, num_heads, dim_head, block_size):
-        super().__init__()
-        self.block_size = block_size
-        self.num_heads = num_heads
-        self.dim_head = dim_head
-        
-        # RMSNorm for stability (following Native Sparse Attention)
-        self.norm = RMSNorm(dim_head)
-        
-    def forward(self, kv):
-        """
-        Args:
-            kv: [batch, num_heads, seq_len, dim_head]
-        Returns:
-            compressed: [batch, num_heads, num_blocks, dim_head]
-        """
-        b, h, n, d = kv.shape
-        
-        # Truncate to multiple of block_size
-        n_blocks = n // self.block_size
-        if n_blocks == 0:
-            return torch.zeros(b, h, 0, d, device=kv.device, dtype=kv.dtype)
-        
-        kv_truncated = kv[:, :, :n_blocks * self.block_size, :]
-        
-        # Reshape to blocks: [b, h, n_blocks, block_size, d]
-        kv_blocks = kv_truncated.reshape(b, h, n_blocks, self.block_size, d)
-        
-        # Max pooling over block dimension
-        compressed = kv_blocks.max(dim=3)[0]  # [b, h, n_blocks, d]
-        
-        # Apply normalization (following Native Sparse Attention)
-        compressed = self.norm(compressed)
-        
-        return compressed
-
-
-class MeanPoolCompress(nn.Module):
-    """
-    Coarse-grained compression using mean pooling (inspired by Native Sparse Attention's AvgPoolCompression)
-    - Averages all features in each block
-    - Good for capturing overall context/semantics
-    - Generally more stable than max pooling for distillation
-    - No positional embeddings (position info already in K/V from RoPE)
-    - Includes RMSNorm for stability (like NSA)
-    """
-    def __init__(self, num_heads, dim_head, block_size):
-        super().__init__()
-        self.block_size = block_size
-        self.num_heads = num_heads
-        self.dim_head = dim_head
-        
-        # RMSNorm for stability (following Native Sparse Attention)
-        self.norm = RMSNorm(dim_head)
-        
-    def forward(self, kv):
-        """
-        Args:
-            kv: [batch, num_heads, seq_len, dim_head]
-        Returns:
-            compressed: [batch, num_heads, num_blocks, dim_head]
-        """
-        b, h, n, d = kv.shape
-        
-        # Truncate to multiple of block_size
-        n_blocks = n // self.block_size
-        if n_blocks == 0:
-            return torch.zeros(b, h, 0, d, device=kv.device, dtype=kv.dtype)
-        
-        kv_truncated = kv[:, :, :n_blocks * self.block_size, :]
-        
-        # Reshape to blocks: [b, h, n_blocks, block_size, d]
-        kv_blocks = kv_truncated.reshape(b, h, n_blocks, self.block_size, d)
-        
-        # Mean pooling over block dimension
-        compressed = kv_blocks.mean(dim=3)  # [b, h, n_blocks, d]
-        
-        # Apply normalization (following Native Sparse Attention)
-        compressed = self.norm(compressed)
-        
-        return compressed
-
-
-class MLPCompress(nn.Module):
-    """
-    Learnable MLP-based compression (inspired by Native Sparse Attention's GroupedMLP)
-    - Uses per-head MLPs for flexible compression
-    - No positional embeddings (position info already in K/V from RoPE)
-    - Includes RMSNorm for stability (like NSA)
-    """
-    def __init__(self, num_heads, dim_head, block_size, expand_factor=1.0):
-        super().__init__()
-        self.block_size = block_size
-        self.num_heads = num_heads
-        self.dim_head = dim_head
-        
-        dim_in = block_size * dim_head
-        dim_hidden = max(int(dim_in * expand_factor), dim_head)
-        
-        # Per-head compression MLPs (following NSA's design)
-        self.compress_mlps = nn.ModuleList([
-            nn.Sequential(
-                nn.Linear(dim_in, dim_hidden, bias=False),
-                nn.ReLU(),
-                nn.Linear(dim_hidden, dim_head, bias=False)
-            ) for _ in range(num_heads)
-        ])
-        
-        # RMSNorm for stability (following Native Sparse Attention)
-        self.norm = RMSNorm(dim_head)
-        
-    def forward(self, kv):
-        """
-        Args:
-            kv: [batch, num_heads, seq_len, dim_head]
-        Returns:
-            compressed: [batch, num_heads, num_blocks, dim_head]
-        """
-        b, h, n, d = kv.shape
-        
-        # Truncate to multiple of block_size
-        n_blocks = n // self.block_size
-        if n_blocks == 0:
-            return torch.zeros(b, h, 0, d, device=kv.device, dtype=kv.dtype)
-        
-        kv_truncated = kv[:, :, :n_blocks * self.block_size, :]
-        
-        # Reshape to blocks
-        kv_blocks = kv_truncated.reshape(b, h, n_blocks, self.block_size, d)
-        
-        # Flatten block dimension: [b, h, n_blocks, block_size * d]
-        kv_flat = kv_blocks.reshape(b, h, n_blocks, -1)
-        
-        # Apply per-head MLPs
-        compressed = []
-        for head_idx in range(h):
-            head_compressed = self.compress_mlps[head_idx](kv_flat[:, head_idx])
-            compressed.append(head_compressed)
-        
-        compressed = torch.stack(compressed, dim=1)  # [b, h, n_blocks, d]
-        
-        # Apply normalization (following Native Sparse Attention)
-        compressed = self.norm(compressed)
-        
-        return compressed
-
-
 class SparseAttentionAdapter(nn.Module):
     """
-    Trainable sparse attention adapter for each Llama layer
-    Implements three-branch architecture:
-    1. Sliding window (use base model's)
-    2. Compressed coarse-grained attention
-    3. Fine-grained selection based on importance
+    Thin wrapper that uses the ORIGINAL Native Sparse Attention implementation
+    (`native_sparse_attention_pytorch.SparseAttention`) as a per-layer adapter.
+
+    - We feed Llama's pre-attention normalized hidden states into `SparseAttention`
+    - We initialize `to_qkv` and `combine_heads` from the frozen Llama teacher layer
+    - All sparse patterns, masks, and three-branch logic are delegated to the NSA code
     """
-    def __init__(
-        self,
-        hidden_size,
-        num_heads,
-        num_kv_heads,
-        compress_block_size=16,
-        compress_stride=8,
-        selection_block_size=16,
-        num_selected_blocks=4,
-        sliding_window_size=64,
-        k_compress_method='mean_pool',  # 'max_pool', 'mean_pool', or 'mlp'
-        v_compress_method='mean_pool',  # 'max_pool', 'mean_pool', or 'mlp'
-        teacher_o_proj_weight=None,  # Teacher's o_proj weight for initialization
-    ):
+
+    def __init__(self, config, sparse_attn_config, teacher_layer):
         super().__init__()
-        
-        self.hidden_size = hidden_size
-        self.num_heads = num_heads
-        self.num_kv_heads = num_kv_heads
-        self.dim_head = hidden_size // num_heads
-        self.num_grouped_queries = num_heads // num_kv_heads
-        
-        self.compress_block_size = compress_block_size
-        self.compress_stride = compress_stride
-        self.selection_block_size = selection_block_size
-        self.num_selected_blocks = num_selected_blocks
-        self.sliding_window_size = sliding_window_size
-        
-        # K compression (support max_pool, mean_pool, mlp)
-        if k_compress_method == 'max_pool':
-            self.k_compress = MaxPoolCompress(
-                num_kv_heads, self.dim_head, compress_block_size
-            )
-        elif k_compress_method == 'mean_pool':
-            self.k_compress = MeanPoolCompress(
-                num_kv_heads, self.dim_head, compress_block_size
-            )
-        else:  # mlp
-            self.k_compress = MLPCompress(
-                num_kv_heads, self.dim_head, compress_block_size, expand_factor=1.0
-            )
-        
-        # V compression (support max_pool, mean_pool, mlp)
-        if v_compress_method == 'max_pool':
-            self.v_compress = MaxPoolCompress(
-                num_kv_heads, self.dim_head, compress_block_size
-            )
-        elif v_compress_method == 'mean_pool':
-            self.v_compress = MeanPoolCompress(
-                num_kv_heads, self.dim_head, compress_block_size
-            )
-        else:  # mlp
-            self.v_compress = MLPCompress(
-                num_kv_heads, self.dim_head, compress_block_size, expand_factor=1.0
-            )
-        
-        # Learnable memory tokens for compressed KV
-        self.num_mem_tokens = 1
-        self.compress_mem_kv = nn.Parameter(
-            torch.zeros(2, num_kv_heads, self.num_mem_tokens, self.dim_head)
-        )
-        
-        # Strategy combiner: learn to weight three branches (following Native Sparse Attention)
-        # Use Linear only, apply softmax in forward pass
-        self.strategy_combiner = nn.Linear(hidden_size, 3 * num_heads)
-        
-        # Initialize to STRONGLY favor sliding window initially (critical for stable KL training)
-        # After softmax, this gives: compressed≈0.007, fine≈0.007, sliding≈0.986
-        # So initially, adapter output ≈ sliding window ≈ original attention
-        nn.init.zeros_(self.strategy_combiner.weight)
-        self.strategy_combiner.bias.data.copy_(
-            torch.tensor([-5., -5., 5.] * num_heads)  # [compressed, fine, sliding]
-        )
-        
-        # Merge and combine heads (like Native Sparse Attention)
-        # merge_heads: [b, h, n, d] -> [b, n, h*d]
-        # combine_heads: [b, n, h*d] -> [b, n, hidden_size]
-        self.combine_heads = nn.Linear(num_heads * self.dim_head, hidden_size, bias=False)
-        
-        # Initialize combine_heads from teacher's o_proj for better initialization
-        # This ensures student output projection matches teacher's at initialization
-        if teacher_o_proj_weight is not None:
-            with torch.no_grad():
-                self.combine_heads.weight.copy_(teacher_o_proj_weight)
-            print(f"✅ Initialized combine_heads from teacher's o_proj")
-        else:
-            # Fallback: small random initialization
-            nn.init.normal_(self.combine_heads.weight, mean=0.0, std=0.001)
-            print(f"⚠️  Teacher o_proj not provided, using random initialization")
-    
-    def compute_compressed_attention(
-        self,
-        q,     # [batch, num_heads, seq_len, dim_head]
-        ck,    # compressed k [batch, num_kv_heads, num_blocks, dim_head]
-        cv,    # compressed v [batch, num_kv_heads, num_blocks, dim_head]
-        scale,
-        attention_mask=None  # [batch, seq_len] - for future use if needed
-    ):
-        """Compute coarse-grained attention over compressed KV"""
-        batch_size = q.shape[0]
-        q_dtype = q.dtype  # preserve original dtype of queries
-        
-        # Add memory tokens
-        mem_ck, mem_cv = repeat(
-            self.compress_mem_kv,
-            'kv h m d -> kv b h m d',
-            b=batch_size
+
+        dim = config.hidden_size
+        heads = config.num_attention_heads
+        kv_heads = config.num_key_value_heads
+        dim_head = dim // heads
+
+        sliding_window_size = sparse_attn_config.get("sliding_window_size", 64)
+        compress_block_size = sparse_attn_config.get("compress_block_size", 16)
+        compress_stride = sparse_attn_config.get("compress_stride", compress_block_size)
+        selection_block_size = sparse_attn_config.get("selection_block_size", 16)
+        num_selected_blocks = sparse_attn_config.get("num_selected_blocks", 4)
+
+        # Use the original NSA module, but disable its internal norm since we
+        # already apply Llama's `input_layernorm` before calling this adapter.
+        self.sparse_attn = SparseAttention(
+            dim=dim,
+            dim_head=dim_head,
+            heads=heads,
+            sliding_window_size=sliding_window_size,
+            compress_block_size=compress_block_size,
+            compress_block_sliding_stride=compress_stride,
+            selection_block_size=selection_block_size,
+            num_selected_blocks=num_selected_blocks,
+            kv_heads=kv_heads,
+            num_compressed_mem_kv=1,
+            causal=True,
+            norm=False,                 # we use Llama's layernorm outside
+            use_diff_topk=False,
+            use_triton_kernel=False,
+            query_heads_share_selected_kv=True,
+            compress_mlp=None,          # let NSA construct default MLP
+            compress_mlp_expand_factor=1.0,
+            strategy_combine_mlp=None,  # let NSA construct default combiner
         )
 
-        # Ensure all tensors participating in attention have the same dtype
-        # This avoids einsum dtype mismatch between float32 / bfloat16
-        mem_ck = mem_ck.to(q_dtype)
-        mem_cv = mem_cv.to(q_dtype)
-        ck = ck.to(q_dtype)
-        cv = cv.to(q_dtype)
+        # Initialize NSA qkv and combine_heads from the frozen Llama teacher
+        with torch.no_grad():
+            q_proj = teacher_layer.self_attn.q_proj
+            k_proj = teacher_layer.self_attn.k_proj
+            v_proj = teacher_layer.self_attn.v_proj
+            o_proj = teacher_layer.self_attn.o_proj
 
-        ck = torch.cat([mem_ck, ck], dim=2)
-        cv = torch.cat([mem_cv, cv], dim=2)
-        
-        # Handle GQA: repeat compressed KV for each query head group
-        ck = repeat(ck, 'b h ... -> b (h g) ...', g=self.num_grouped_queries)
-        cv = repeat(cv, 'b h ... -> b (h g) ...', g=self.num_grouped_queries)
-        
-        # Compute attention
-        sim = torch.einsum('bhid,bhjd->bhij', q, ck) * scale
-        
-        # Apply causal mask for compressed attention (following NSA's design)
-        # CRITICAL: Block must be STRICTLY in the past (block_end < query_pos)
-        # This ensures no future information leakage through compressed blocks
-        seq_len = q.shape[2]
-        num_compress_blocks = ck.shape[2] - self.num_mem_tokens  # Exclude memory tokens
-        
-        if num_compress_blocks > 0:
-            # Query positions: [0, 1, 2, ..., seq_len-1]
-            query_positions = torch.arange(seq_len, device=q.device)  # [seq_len]
-            
-            # Compressed block end positions (last token in each block)
-            # Block i ends at: (i+1) * block_size - 1
-            block_end_positions = torch.arange(1, num_compress_blocks + 1, device=q.device) * self.compress_block_size - 1
-            
-            # Causal mask: block_end < query_position (STRICT <, following NSA!)
-            # This means: block must be completely finished before query position
-            # query_positions: [seq_len, 1], block_end_positions: [1, num_blocks]
-            causal_mask = block_end_positions[None, :] < query_positions[:, None]  # [seq_len, num_blocks]
-            
-            # Memory tokens are always visible (prepended, with position -1)
-            mem_mask = torch.ones(seq_len, self.num_mem_tokens, device=q.device, dtype=torch.bool)
-            full_mask = torch.cat([mem_mask, causal_mask], dim=1)  # [seq_len, num_mem + num_blocks]
-            
-            # Apply mask: [batch, heads, seq_len, num_compressed]
-            full_mask = full_mask.unsqueeze(0).unsqueeze(0)  # [1, 1, seq_len, num_compressed]
-            sim = sim.masked_fill(~full_mask, -1e10)
-        
-        attn = F.softmax(sim, dim=-1)
-        out = torch.einsum('bhij,bhjd->bhid', attn, cv)
-        
-        return out, sim[:, :, :, self.num_mem_tokens:]  # Return importance scores (without mem tokens)
-    
-    def compute_fine_attention(
-        self,
-        q,                    # [batch, num_heads, seq_len, dim_head]
-        k,                    # [batch, num_kv_heads, seq_len, dim_head]
-        v,                    # [batch, num_kv_heads, seq_len, dim_head]
-        importance_scores,    # [batch, num_heads, seq_len, num_compress_blocks]
-        scale
-    ):
-        """Select important blocks based on compressed attention and compute fine attention"""
-        batch_size, _, seq_len, _ = q.shape
-        
-        # Average importance across query head groups
-        importance = reduce(
-            importance_scores,
-            'b (h g) ... -> b h ...',
-            'mean',
-            g=self.num_grouped_queries
-        )
-        
-        num_blocks = importance.shape[-1]
-        num_selected = min(self.num_selected_blocks, num_blocks)
-        
-        if num_selected == 0:
-            # Fallback to full attention on current sequence
-            k_full = repeat(k, 'b h ... -> b (h g) ...', g=self.num_grouped_queries)
-            v_full = repeat(v, 'b h ... -> b (h g) ...', g=self.num_grouped_queries)
-            sim = torch.einsum('bhid,bhjd->bhij', q, k_full) * scale
-            attn = F.softmax(sim, dim=-1)
-            return torch.einsum('bhij,bhjd->bhid', attn, v_full)
-        
-        # Select top-k important blocks (per query position)
-        # Normalize importance scores
-        importance = F.pad(importance, (1, 0), value=-1e10)
-        importance = F.softmax(importance, dim=-1)
-        importance = importance[..., 1:]  # Remove padding
-        
-        selected_scores, selected_indices = importance.topk(num_selected, dim=-1)
-        
-        # Prepare K and V in block format
-        fine_divisible_len = (seq_len // self.selection_block_size) * self.selection_block_size
-        k_trunc = k[:, :, :fine_divisible_len, :]
-        v_trunc = v[:, :, :fine_divisible_len, :]
-        
-        num_fine_blocks = fine_divisible_len // self.selection_block_size
-        
-        k_blocks = rearrange(
-            k_trunc, 
-            'b h (w bs) d -> b h w bs d', 
-            bs=self.selection_block_size
-        )
-        v_blocks = rearrange(
-            v_trunc, 
-            'b h (w bs) d -> b h w bs d', 
-            bs=self.selection_block_size
-        )
-        
-        # Gather selected blocks
-        # Expand selected_indices for gathering
-        selected_indices_exp = repeat(
-            selected_indices,
-            'b h q sel -> b h q sel bs d',
-            bs=self.selection_block_size,
-            d=self.dim_head
-        )
-        
-        # Expand k/v blocks for all query positions
-        k_blocks_exp = repeat(k_blocks, 'b h w bs d -> b h q w bs d', q=seq_len)
-        v_blocks_exp = repeat(v_blocks, 'b h w bs d -> b h q w bs d', q=seq_len)
-        
-        # Gather
-        selected_k = k_blocks_exp.gather(3, selected_indices_exp)
-        selected_v = v_blocks_exp.gather(3, selected_indices_exp)
-        
-        # Flatten selected blocks
-        selected_k = rearrange(selected_k, 'b h q sel bs d -> b h q (sel bs) d')
-        selected_v = rearrange(selected_v, 'b h q sel bs d -> b h q (sel bs) d')
-        
-        # Expand for GQA
-        selected_k = repeat(selected_k, 'b h ... -> b (h g) ...', g=self.num_grouped_queries)
-        selected_v = repeat(selected_v, 'b h ... -> b (h g) ...', g=self.num_grouped_queries)
-        
-        # Compute attention over selected blocks
-        sim = torch.einsum('bhid,bhijd->bhij', q, selected_k) * scale
-        
-        # Apply causal mask for fine attention (CRITICAL!)
-        # Need to ensure selected blocks don't contain future tokens
-        # Each selected block has indices [block_idx * block_size, (block_idx+1) * block_size)
-        
-        # For each query position and each selected block, compute the block's start position
-        # selected_indices: [b, h, q, num_selected] - which blocks are selected
-        # We need to check if the block tokens are before the query position
-        
-        # Create causal mask based on block positions
-        # For simplicity: a token at position i can attend to a block if the block starts at position < i
-        num_selected_tokens = selected_k.shape[3]  # num_selected * block_size
-        
-        # Importance score mask (keep tokens with non-zero importance)
-        importance_mask = repeat(
-            selected_scores > 1e-10, 
-            'b h q sel -> b (h g) q (sel bs)', 
-            g=self.num_grouped_queries, 
-            bs=self.selection_block_size
-        )
-        
-        # Causal mask: For each query position, mask out tokens from selected blocks that are in the future
-        # This is conservative: we compute per-token causal constraint
-        # selected_indices: [b, h, q, num_selected] gives block indices
-        # Convert to token positions and create causal mask
-        
-        # Get block start positions for selected blocks
-        block_start_positions = selected_indices * self.selection_block_size  # [b, h, q, num_selected]
-        
-        # Expand to per-token positions within each block
-        # Token j in block i is at position: block_start + j
-        token_offsets = torch.arange(self.selection_block_size, device=q.device)  # [block_size]
-        token_positions = block_start_positions.unsqueeze(-1) + token_offsets  # [b, h, q, sel, bs]
-        token_positions = rearrange(token_positions, 'b h q sel bs -> b h q (sel bs)')  # [b, h, q, num_tokens]
-        
-        # Query positions
-        query_positions = torch.arange(seq_len, device=q.device)  # [seq_len]
-        query_positions = query_positions.view(1, 1, -1, 1)  # [1, 1, seq_len, 1]
-        
-        # Causal constraint: token_position <= query_position
-        causal_mask = token_positions <= query_positions  # [b, h, q, num_tokens]
-        
-        # Expand for GQA
-        causal_mask = repeat(causal_mask, 'b h ... -> b (h g) ...', g=self.num_grouped_queries)
-        
-        # Combine importance and causal masks
-        final_mask = importance_mask & causal_mask
-        sim = sim.masked_fill(~final_mask, -1e10)
-        
-        attn = F.softmax(sim, dim=-1)
-        out = torch.einsum('bhij,bhijd->bhid', attn, selected_v)
-        
-        return out
-    
-    def forward(
-        self,
-        hidden_states,
-        q, k, v,              # From base model's attention
-        attention_mask=None,
-        debug_print=False,    # Enable dimension checking
-    ):
+            dim_inner = dim_head * heads
+            dim_kv_inner = dim_head * kv_heads
+
+            assert q_proj.weight.shape == (dim_inner, dim)
+            assert k_proj.weight.shape == (dim_kv_inner, dim)
+            assert v_proj.weight.shape == (dim_kv_inner, dim)
+            assert self.sparse_attn.to_qkv.weight.shape[0] == dim_inner + 2 * dim_kv_inner
+
+            # Stack teacher q / k / v into NSA's single Linear
+            qkv_weight = self.sparse_attn.to_qkv.weight
+            qkv_weight[:dim_inner, :] = q_proj.weight.data
+            qkv_weight[dim_inner:dim_inner + dim_kv_inner, :] = k_proj.weight.data
+            qkv_weight[dim_inner + dim_kv_inner:, :] = v_proj.weight.data
+
+            # Output projection
+            assert self.sparse_attn.combine_heads.weight.shape == o_proj.weight.shape
+            self.sparse_attn.combine_heads.weight.copy_(o_proj.weight.data)
+
+        print("✅ Initialized NSA SparseAttention adapter from teacher layer weights")
+
+    def forward(self, hidden_states, attention_mask=None):
         """
-        Forward pass implementing Native Sparse Attention's three-branch architecture
-        
         Args:
-            hidden_states: [batch, seq_len, hidden_size]
-            q, k, v: Query, Key, Value from base model
-                q: [batch, num_heads, seq_len, dim_head]
-                k, v: [batch, num_kv_heads, seq_len, dim_head]
-            attention_mask: Optional attention mask
-            debug_print: If True, print dimension information for verification
-        
+            hidden_states: [batch, seq_len, hidden_size]  (already input_layernorm-ed)
+            attention_mask: currently unused (NSA handles causal masking internally)
+
         Returns:
-            out: [batch, seq_len, hidden_size] - Same shape as Llama's attention output
+            out: [batch, seq_len, hidden_size]
         """
-        batch_size, seq_len, _ = hidden_states.shape
-        scale = self.dim_head ** -0.5
-        
-        # 1. Compressed attention branch
-        # K and V are already [batch, num_kv_heads, seq_len, dim_head] from forward
-        # No need to rearrange, they come directly from the model
-        k_kv = k  # Already [batch, num_kv_heads, seq_len, dim_head]
-        v_kv = v  # Already [batch, num_kv_heads, seq_len, dim_head]
-        
-        if debug_print:
-            print(f"\n{'='*60}")
-            print(f"Dimension Check - Compression Stage")
-            print(f"{'='*60}")
-            print(f"Original K shape: {k_kv.shape}")
-            print(f"Original V shape: {v_kv.shape}")
-            print(f"  -> [batch={k_kv.shape[0]}, kv_heads={k_kv.shape[1]}, seq_len={k_kv.shape[2]}, dim_head={k_kv.shape[3]}]")
-        
-        # Compress K and V, ensure dtype consistency with Q
-        ck = self.k_compress(k_kv).to(q.dtype)
-        cv = self.v_compress(v_kv).to(q.dtype)
-        
-        if debug_print:
-            num_blocks = seq_len // self.compress_block_size
-            compression_ratio = seq_len / ck.shape[2] if ck.shape[2] > 0 else float('inf')
-            print(f"\nCompressed K shape: {ck.shape}")
-            print(f"Compressed V shape: {cv.shape}")
-            print(f"  -> [batch={ck.shape[0]}, kv_heads={ck.shape[1]}, num_blocks={ck.shape[2]}, dim_head={ck.shape[3]}]")
-            print(f"\n✅ Compression successful!")
-            print(f"  - Original sequence length: {seq_len}")
-            print(f"  - Compressed to {ck.shape[2]} blocks")
-            print(f"  - Compression ratio: {compression_ratio:.2f}x")
-            print(f"  - Block size: {self.compress_block_size}")
-            print(f"  - Memory saved: {(1 - 1/compression_ratio)*100:.1f}%")
-            print(f"{'='*60}\n")
-        
-        compressed_out, importance_scores = self.compute_compressed_attention(
-            q, ck, cv, scale, attention_mask
-        )
-        
-        # 2. Fine attention branch (based on importance from compressed)
-        fine_out = self.compute_fine_attention(
-            q, k_kv, v_kv, importance_scores, scale
-        )
-        
-        # 3. Sliding window branch
-        # Each position attends to itself and the previous window_size-1 tokens
-        # This is the standard causal sliding window attention
-        
-        # Create sliding window mask (vectorized)
-        # Position i attends to positions in range [max(0, i-window_size+1), i]
-        row_indices = torch.arange(seq_len, device=q.device)[:, None]  # [seq_len, 1]
-        col_indices = torch.arange(seq_len, device=q.device)[None, :]  # [1, seq_len]
-        
-        # Causal: col <= row (only attend to past and present)
-        # Window: col > row - window_size (not too far in the past)
-        sliding_mask = (col_indices <= row_indices) & (col_indices > row_indices - self.sliding_window_size)
-        
-        # Compute sliding window attention
-        k_full = repeat(k_kv, 'b h ... -> b (h g) ...', g=self.num_grouped_queries)
-        v_full = repeat(v_kv, 'b h ... -> b (h g) ...', g=self.num_grouped_queries)
-        
-        sim = torch.einsum('bhid,bhjd->bhij', q, k_full) * scale
-        
-        # Apply sliding window mask
-        sim = sim.masked_fill(~sliding_mask.unsqueeze(0).unsqueeze(0), -1e10)
-        
-        # Apply attention_mask if provided (mask out padding tokens)
-        if attention_mask is not None:
-            # attention_mask: [batch, seq_len] with 1 for real tokens, 0 for padding
-            # Expand to [batch, 1, 1, seq_len] for broadcasting
-            expanded_mask = attention_mask[:, None, None, :].bool()
-            sim = sim.masked_fill(~expanded_mask, -1e10)
-        
-        attn = F.softmax(sim, dim=-1)
-        sliding_out = torch.einsum('bhij,bhjd->bhid', attn, v_full)
-        
-        # 4. Combine three branches with learned weights (following Native Sparse Attention)
-        strategy_logits = self.strategy_combiner(hidden_states)  # [batch, seq_len, 3 * num_heads]
-        strategy_logits = rearrange(
-            strategy_logits,
-            'b n (h s) -> b h n s',
-            h=self.num_heads,
-            s=3
-        )
-        
-        # Apply softmax to ensure weights sum to 1 (following NSA)
-        strategy_weights = F.softmax(strategy_logits, dim=-1)  # [batch, num_heads, seq_len, 3]
-        
-        # Stack outputs: [3, batch, num_heads, seq_len, dim_head]
-        stacked_outputs = torch.stack([compressed_out, fine_out, sliding_out], dim=0)
-        
-        # Weighted combination: [batch, num_heads, seq_len, dim_head]
-        combined = torch.einsum('sbhnd,bhns->bhnd', stacked_outputs, strategy_weights)
-        
-        # 5. Merge heads and combine (like Native Sparse Attention)
-        # [batch, num_heads, seq_len, dim_head] -> [batch, seq_len, num_heads * dim_head]
-        combined = rearrange(combined, 'b h n d -> b n (h d)')
-        
-        # [batch, seq_len, num_heads * dim_head] -> [batch, seq_len, hidden_size]
-        out = self.combine_heads(combined)
-        
-        return out  # [batch, seq_len, hidden_size] ✅
+        # Native Sparse Attention does not take a standard attention_mask tensor
+        # for padding; for now we rely on training data being trimmed properly.
+        # If needed, we can later extend this by using flex attention masks.
+        return self.sparse_attn(hidden_states)
 
 
 class LlamaWithSparseAttention(nn.Module):
@@ -660,20 +170,17 @@ class LlamaWithSparseAttention(nn.Module):
         # Get config
         config = self.base_model.config
         
-        # Create sparse attention adapters for each layer
-        # Pass teacher's o_proj weight for better initialization
+        # Create sparse attention adapters for each layer, using ORIGINAL NSA implementation
         self.sparse_adapters = nn.ModuleList([
             SparseAttentionAdapter(
-                hidden_size=config.hidden_size,
-                num_heads=config.num_attention_heads,
-                num_kv_heads=config.num_key_value_heads,
-                teacher_o_proj_weight=self.base_model.model.layers[layer_idx].self_attn.o_proj.weight.data.clone(),
-                **sparse_attn_config
+                config=config,
+                sparse_attn_config=sparse_attn_config,
+                teacher_layer=self.base_model.model.layers[layer_idx],
             )
             for layer_idx in range(config.num_hidden_layers)
         ])
         
-        print(f"✅ Added {len(self.sparse_adapters)} sparse attention adapters (initialized from teacher's o_proj)")
+        print(f"✅ Added {len(self.sparse_adapters)} NSA-based sparse attention adapters (initialized from teacher attn)")
         
         # Move adapters to the same device and dtype as base model and save them
         try:
@@ -735,42 +242,24 @@ class LlamaWithSparseAttention(nn.Module):
             
             # 2.1 Input layer norm (frozen, but keep gradient flow)
             normed = layer.input_layernorm(hidden)
-            
-            # 2.2 Get Q, K, V from frozen projections (keep gradient flow)
-            q_proj = layer.self_attn.q_proj(normed)
-            k_proj = layer.self_attn.k_proj(normed)
-            v_proj = layer.self_attn.v_proj(normed)
-            
-            # Reshape to [batch, heads, seq_len, dim_head]
-            dim_head = self.config.hidden_size // self.config.num_attention_heads
-            
-            q = q_proj.view(batch_size, seq_len, self.config.num_attention_heads, dim_head)
-            k = k_proj.view(batch_size, seq_len, self.config.num_key_value_heads, dim_head)
-            v = v_proj.view(batch_size, seq_len, self.config.num_key_value_heads, dim_head)
-            
-            q = q.transpose(1, 2)  # [batch, heads, seq_len, dim_head]
-            k = k.transpose(1, 2)
-            v = v.transpose(1, 2)
-            
-            # 2.3 Apply trainable sparse adapter
-            # This is where the trainable parameters are!
-            # Adapter returns [batch, seq_len, hidden_size] directly (like NSA)
+
+            # 2.2 Apply NSA-based trainable sparse adapter
+            # This replaces the original self-attention block with Native Sparse Attention
             attn_output = self.sparse_adapters[layer_idx](
-                normed, q, k, v,
+                normed,
                 attention_mask=attention_mask,
-                debug_print=False
-            )  # [batch, seq_len, hidden_size] ✅
+            )  # [batch, seq_len, hidden_size]
             
-            # 2.4 Residual connection (directly, like NSA!)
+            # 2.3 Residual connection
             hidden = residual + attn_output
             
-            # 2.5 Post-attention (frozen, no grad needed for MLP)
+            # 2.4 Post-attention (frozen, no grad needed for MLP)
             residual = hidden
             with torch.no_grad():
                 normed = layer.post_attention_layernorm(hidden)
                 mlp_out = layer.mlp(normed)
             
-            # 2.6 Residual (detach MLP output to save memory)
+            # 2.5 Residual (detach MLP output to save memory)
             hidden = residual + mlp_out.detach()
             
             # Collect hidden state after this layer (for distillation)

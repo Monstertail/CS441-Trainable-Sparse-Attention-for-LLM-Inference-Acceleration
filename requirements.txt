@@ -10,6 +10,9 @@ numpy
 
 # Tensor operations
 einops
+jaxtyping
+local-attention>=1.11.1
+rotary-embedding-torch
 
 # Training utilities
 tqdm
