@@ -15,7 +15,7 @@ set -e
 ADAPTER_PATH=${1:-"../train/ckpt/sparse_attn_exp1-gsm8k-3.0epoch-Llama-3.2-1B-Instruct-sparse"}
 TASK_NAME=${2:-"gsm8k"}
 SPLIT=${3:-"test"}
-COMPARE_BASE=${4:-"false"}  # Set to "true" to also evaluate base model
+COMPARE_BASE=${4:-"true"}  # Set to "true" to also evaluate base model
 
 MODEL_ID="meta-llama/Llama-3.2-1B-Instruct"
 DATA_PATH=${DATA_PATH:-"../train/data/gsm8k"}  # Relative path from evaluation/
