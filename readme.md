@@ -95,6 +95,7 @@ It evaluates:
 <div align="center">
   <img src="assets/data_collection.png" />
 </div>
+
 I collected some QA-style notes from UIUC CS441 while preparing for the exam. To scale up the data, I designed prompts to let Gemini generate additional synthetic data in a question–answer format. See [`data_collection/readme.md`](data_collection/readme.md).
 
 #### Usage in prertaining
