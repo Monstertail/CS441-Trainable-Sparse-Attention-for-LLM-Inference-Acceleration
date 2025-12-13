@@ -29,14 +29,15 @@ from sparse_attention.native_sparse_attention_pytorch.compress_networks import (
 
 # NUM_BATCHES = int(1e5)
 NUM_BATCHES = int(5e3)
-BATCH_SIZE = 64
+BATCH_SIZE = 16
 GRAD_ACCUM_EVERY = 4
 LEARNING_RATE = 1e-4
 VALIDATE_EVERY = 100
 PRIME_LENGTH = 64
 GENERATE_EVERY = 500
 GENERATE_LENGTH = 512
-SEQ_LEN = 512
+# SEQ_LEN = 512
+SEQ_LEN = 4096
 HEADS = 8
 KV_HEADS = 4
 DIM_HEAD = 64
@@ -46,8 +47,8 @@ EARLY_STOP_LOSS = 0.2
 CKPT_EVERY = 2500              
 CKPT_DIR = "./ckpt"     
 
-USE_SPARSE_ATTN = True
-# USE_SPARSE_ATTN = False # full attention
+# USE_SPARSE_ATTN = True
+USE_SPARSE_ATTN = False # full attention
 USE_TRITON_NSA = True
 USE_FLEX_FOR_FINE_SELECTION = False   # will push flex a bit, won't be efficient as each layer needs sparsity dynmically generated, but may be enough just to compare to full attention before going all-in on triton kernels
 QUERY_HEADS_SHARE_SELECTION = True    # if set to False, each query head can look at a different segment of their corresponding key / value head in GQA
@@ -75,7 +76,7 @@ COMPRESS_METHOD = 'conv'
 
 # experiment related
 
-PROJECT_NAME = 'native-sparse-attention-pretrain'
+PROJECT_NAME = f'native-sparse-attention-pretrain-seq{SEQ_LEN}'
 
 COMPRESS_METHOD_NAME = {
     'conv': 'ConvLinear',
@@ -85,14 +86,17 @@ COMPRESS_METHOD_NAME = {
 }.get(COMPRESS_METHOD, COMPRESS_METHOD)
 
 RUN_NAME = (
-    'full-attention'
-    if not USE_SPARSE_ATTN
-    else (
-        f'sparse-attn[{COMPRESS_METHOD_NAME}]: '
-        f'compress size {COMPRESS_BLOCK_SIZE} | '
-        f'fine size {FINE_BLOCK_SIZE} | '
-        f'{NUM_FINE_SELECTED} selected'
+    (
+        'full-attention'
+        if not USE_SPARSE_ATTN
+        else (
+            f'sparse-attn[{COMPRESS_METHOD_NAME}]: '
+            f'compress size {COMPRESS_BLOCK_SIZE} | '
+            f'fine size {FINE_BLOCK_SIZE} | '
+            f'{NUM_FINE_SELECTED} selected'
+        )
     )
+    + f' | seq_len={SEQ_LEN}'
 )
 # WANDB_ONLINE = False # turn this on to pipe experiment to cloud
 WANDB_ONLINE = True # turn this on to pipe experiment to cloud
@@ -215,13 +219,14 @@ wandb.run.name = RUN_NAME
 
 
 CKPT_PREFIX = (
-    "full_attn"
+    f"full_attn_seq{SEQ_LEN}"
     if not USE_SPARSE_ATTN
     else (
         f"sparse_attn_{COMPRESS_METHOD}_"
         f"c{COMPRESS_BLOCK_SIZE}_"
         f"f{FINE_BLOCK_SIZE}_"
-        f"n{NUM_FINE_SELECTED}"
+        f"n{NUM_FINE_SELECTED}_"
+        f"seq{SEQ_LEN}"
     )
 )
 
