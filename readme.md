@@ -22,55 +22,123 @@ pip install -r requirements.txt
 
 ### Folder structure
 
-fine_tune-> (could ignore) To fine tune in multiple GPUs. Currently, I focused on the pretraining.
+- **pretrain/**: Pretrain a small GPT-like Transformer on enwik8 (byte-level LM).
+  - `train.py`: main training script (edit `SEQ_LEN`, `USE_SPARSE_ATTN`, `COMPRESS_METHOD`, etc.)
+  - `data/enwik8.gz`: training data (byte stream)
+  - `ckpt/`: saved checkpoints
+  - `wandb/`: W&B logs
+
+- **sparse_attention/**: Sparse attention related code.
+  - `native_sparse_attention_pytorch/`: in-repo copy of DeepSeek Native Sparse Attention (NSA)
+    - includes `Transformer`, `SparseAttention`, and `compress_networks.py`
+  - additional model wrappers used in this project (e.g., Llama + adapters experiments)
+
+- **evaluation/**: Evaluation scripts (efficiency + quality).
+  - `efficiency.py`: latency / throughput / peak memory test
+  - `perplexity.py`: PPL test (in-distribution vs out-of-distribution)
+  - `pretrain/run_pretrain_efficiency_test.sh`: wrapper to compare checkpoints
+  - `pretrain/run_pretrain_ppl_test.sh`: wrapper to compare checkpoints
+
+- **data_collection/**: CS441 QA data (synthetic train/test) used as OOD evaluation source.
+
+- **continuous_pretrain/**: (planned) “middle training / continuous pretraining” on CS441 dataset.
+
+- **fine_tune/**: (to make it work,ignore now) Llama fine-tuning experiments; requires multi-gpus.
 
 ### launch scripts
 
 #### pretraining
 
-can change sparse attention type
-seq length, or other sparse attention settings.
+Pretrain from scratch on enwik8:
+
+```bash
+cd pretrain
+python train.py
+```
+
+Key knobs in `pretrain/train.py`:
+
+- **Attention type**
+  - `USE_SPARSE_ATTN = True`: train with NSA sparse attention
+  - `USE_SPARSE_ATTN = False`: train a full-attention baseline
+- **Sequence length / batch size**: `SEQ_LEN`, `BATCH_SIZE`
+- **Compression method (NSA)**
+  - `COMPRESS_METHOD = 'conv' | 'attn' | 'mlp' | 'mean'`
 
 #### evaluation
+
+This repo provides two evaluation dimensions:
+
+- **Efficiency (speed + memory)**:
+
+```bash
+# from repo root
+bash evaluation/pretrain/run_pretrain_efficiency_test.sh 5000
+```
+
+It loads checkpoints under `pretrain/ckpt/` and prints latency / throughput / peak memory.
+
+- **Quality (perplexity, ID vs OOD)**:
+
+```bash
+# from repo root
+bash evaluation/pretrain/run_pretrain_ppl_test.sh 5000 512
+```
+
+It evaluates:
+- **In-distribution**: enwik8 validation split (byte-level)
+- **Out-of-distribution**: CS441 synthetic QA test set, serialized to UTF-8 bytes
 
 ## 📁 Project Structure
 
 ### data collection
-I collect some data from UIUC CS441 course when I prepared for the exam. To generate more data, I designed the prompt to let Gemini 3 to help me genrate synthetic data in a question-answer format.  Check details in [`data_collection/readme.md`](data_collection/readme.md).
+I collected some QA-style notes from UIUC CS441 while preparing for the exam. To scale up the data, I designed prompts to let Gemini generate additional synthetic data in a question–answer format. See [`data_collection/readme.md`](data_collection/readme.md).
 
 #### Usage in prertaining
-I pretrained the transformer with enwiki dataset. 
+I pretrained the Transformer on **enwik8** as a byte-level language modeling task.
 
 
 #### Usage in continuous-pretraining(aka middle training)
-I had planed to train the model with a train set of my collected CS441 knowlegde dataset after pretraining with enwiki dataset. I did not have enough time to do so, but it does not matter as we can still use the data to evaluate the pretrained model with an out-of-distribution simulation.
+I planned to run a second-stage “continuous pretraining” on the CS441 dataset after enwik8 pretraining. Due to time/compute constraints it was not fully executed, but the dataset is still useful as an **OOD evaluation** source.
 
 #### Usage in evaluation
-During the evaluation, I used a subset of enwiki to simulate the in-distribution case, and used my collected data of CS441 to simulate the out-of-distribution case.
+During evaluation:
+- **In-distribution**: a subset of enwik8 validation (byte-level)
+- **Out-of-distribution**: CS441 synthetic QA test set (converted to a byte stream)
 
 ### Model design
 <div align="center">
   <img src="assets/cs441_nsa.png" />
 </div>
 
-The oraginal [native trainable sparse attention(NSA)](https://arxiv.org/pdf/2502.11089 ) from DeepSeek has three components: (1) compression module for global information; (2) fine-grained block selection for fine-grained middle information; (3) sliding window attention for local information. Then all three components' outputs will be combined in a gate to get the attention output.
+The original [Native Sparse Attention (NSA)](https://arxiv.org/pdf/2502.11089) from DeepSeek has three components:
+1. **Compression module** for global information (compress long KV into fewer “memory” slots)
+2. **Fine-grained block selection** for mid-range information (select a few important remote blocks)
+3. **Sliding window attention** for local information
 
-Compression module is very important as it not only provide the global information, but also it is the base of fine-grained block selection. In the original NSA paper, it adopts a MLP to compress the KV cache. But another block sparse attention paper from Moonshot AI called Mixture of Block Attention(MoBA) mentioned that the meanpooling of KV cache is already enough to do the compression.
+The outputs of all three branches are combined by a learned gate to form the final attention output.
 
-Therefore, I implemented and compared four kinds of compression methods, as shown in the figure above. I summaried the details of those four methods here:
+The compression module is critical: it provides global context and also drives fine-grained selection. The original NSA paper uses an MLP-style compressor, while MoBA suggests simple mean pooling can already work surprisingly well.
+
+Therefore, I implemented and compared four compression methods (see `sparse_attention/native_sparse_attention_pytorch/compress_networks.py`):
+
+- **`ConvLinearCompress` (`conv`)**: grouped 1D convolution per head (learned downsampling).
+- **`AttentionPool` (`attn`)**: attention-based pooling inside each window (learned weighted average).
+- **`MeanPoolCompress` (`mean`)**: parameter-free mean pooling baseline.
+- **`GroupedMLP` (`mlp`)**: per-head MLP over the flattened window (higher capacity, higher cost).
 
 
 ### Evaluation
 
 Different compression modules and max context length
 #### pretraining time observation
-training loss and evaluation loss
+- training loss and evaluation loss (enwik8 val)
 
 #### Efficiency
-metrics: memory, latency, throughput
+- metrics: peak memory, latency, throughput
 
 #### Quality
-metrics: Perplexity in in-distribution and out-of-distribution case.
+- metrics: Perplexity in in-distribution and out-of-distribution case (enwik8 vs CS441)
 
 
 
