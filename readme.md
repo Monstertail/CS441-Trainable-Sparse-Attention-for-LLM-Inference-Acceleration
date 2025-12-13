@@ -207,11 +207,11 @@ Different compression modules and max context length
 ##### Fine-tune( based on Llama 3.2-12B)
 <figure style="display:flex; gap:16px; justify-content:center;">
   <div style="text-align:center;">
-    <img src="assets/ft_ce_loss.png" width="95%">
+    <img src="assets/ft_ce_loss.png" width="45%">
     <figcaption>(left) CE loss during fine-tuning.</figcaption>
   </div>
   <div style="text-align:center;">
-    <img src="assets/ft_mse_loss.png" width="95%">
+    <img src="assets/ft_mse_loss.png" width="45%">
     <figcaption>(right) Average layerwise MSE loss during fine-tuning.</figcaption>
   </div>
 </figure>
