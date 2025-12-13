@@ -131,6 +131,72 @@ Therefore, I implemented and compared four compression methods (see `sparse_atte
 - **`MeanPoolCompress` (`mean`)**: parameter-free mean pooling baseline.
 - **`GroupedMLP` (`mlp`)**: per-head MLP over the flattened window (higher capacity, higher cost).
 
+<details>
+<summary><b>📊Details and key decisions in the model design and training pipeline</b></summary>
+
+I built an end-to-end pipeline to **train**, **evaluate**, and **compare** multiple key design decisions around sparse attention.
+
+#### 1. Models tested (what I compared)
+
+1. **Full-attention baseline (byte-level Transformer)**
+   - Same GPT-like architecture and training setup, but with standard full attention as a reference point.
+
+2. **Native Sparse Attention (NSA) Transformer (byte-level)**
+   - Same backbone, but replaces attention with the NSA three-branch mechanism (compression + fine selection + sliding window) and a learned gating combiner.
+
+3. **Compression-module variants (within NSA)**
+   - Compared multiple NSA variants by changing `COMPRESS_METHOD` while keeping everything else matched.
+   - (Details of the four compression networks are summarized above; not repeated here.)
+
+4. **Fine-tuning attempt (Llama + sparse attention adapters, exploratory / partially successful)**
+   - Implemented a model wrapper to plug trainable NSA adapters into a frozen Llama teacher.
+   - This line of work was valuable for learning, but was unstable under strict memory limits (small effective batch sizes), so the main results focus on pretraining from scratch.
+
+#### 2. Hyperparameters and key design knobs I varied
+
+1. **Context length**
+   - Tested different `SEQ_LEN` (e.g., 512 and longer contexts) to study scaling behavior and efficiency trade-offs.
+
+2. **Attention mode**
+   - `USE_SPARSE_ATTN = True` (NSA) vs `USE_SPARSE_ATTN = False` (full attention baseline).
+
+3. **NSA sparsity structure**
+   - Sliding window and selection behavior: `SLIDING_WINDOW_SIZE`, `FINE_BLOCK_SIZE`, `NUM_FINE_SELECTED`
+   - Compression windowing: `COMPRESS_BLOCK_SIZE`, `COMPRESS_BLOCK_SLIDING_STRIDE`
+   - Selection behavior toggles: `USE_DIFF_TOPK`, `QUERY_HEADS_SHARE_SELECTION`
+   - Kernel choice for fine selection (where supported): triton / flex / vanilla paths
+
+4. **Training pipeline knobs**
+   - Optimization and stability: learning rate, gradient accumulation, gradient clipping, checkpointing cadence, and early stopping threshold.
+
+#### 3. Data + preprocessing (byte-level throughout)
+
+1. **In-distribution (ID)**
+   - enwik8 byte stream (no tokenizer; vocab size = 256).
+
+2. **Out-of-distribution (OOD)**
+   - CS441 synthetic QA test set.
+   - Since there is no encoder/tokenizer, I serialize QA pairs into text and convert to **UTF-8 bytes** so it can be evaluated in the same byte-level LM setting.
+
+#### 4. Evaluation pipeline (what I implemented to compare decisions)
+
+1. **Efficiency**
+   - Measured peak GPU memory, latency, and throughput using a dedicated script and wrapper.
+
+2. **Quality**
+   - Measured perplexity (PPL) on both ID (enwik8 val) and OOD (CS441 QA bytes), and printed the evaluated token / example counts for transparency.
+
+#### 5. Fine-tuning / distillation losses explored (Llama adapter attempt)
+
+To bridge full attention → sparse attention, I experimented with multiple loss designs beyond plain CE:
+- **CE loss** for next-token prediction (standard LM objective)
+- **KL distillation on logits** (teacher vs student output distribution)
+- **Layer-wise MSE on hidden states** (align intermediate representations)
+- **Mixed objectives** combining distillation + CE
+
+These experiments guided the project direction: due to instability under memory constraints, the most reliable results came from the from-scratch pretraining pipeline + systematic ablations.
+
+</details>
 
 ### Evaluation
 
