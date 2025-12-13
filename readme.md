@@ -1,8 +1,11 @@
 # CS441 Trainable Sparse Attention - Project Summary
 
 ## 🎯 Project Overview
-Sparse attention is a promising method to reduce the cost during the LLM inference. DeepSeek's native sparse attention is a pretraining method that enables the model to select a subset of KV cache during the inference time. In this project, I'd like to show a proof of concept that a GPT-like transformer can be pretrained  to have sparse attention ability.
+Sparse attention is a promising method to reduce the cost during the LLM inference. DeepSeek's native sparse attention is a pretraining method that enables the model to select a subset of KV cache during the inference time, as shown in the follwing figure. In this project, I'd like to show a proof of concept that a GPT-like transformer can be pretrained  to have sparse attention ability.
 
+<div align="center">
+  <img src="assets/sparse_overview.jpg" />
+</div>
 
 > NOTE: I tried to fine-tune the Llama 3.2-1B to enable sparse attention.
 > I tried a lot of efforts to distill the full attention knowledge to sparse attention. But it cannot work well because the fine tuning was not stable.
