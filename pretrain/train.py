@@ -47,8 +47,8 @@ EARLY_STOP_LOSS = 0.2
 CKPT_EVERY = 2500              
 CKPT_DIR = "./ckpt"     
 
-# USE_SPARSE_ATTN = True
-USE_SPARSE_ATTN = False # full attention
+USE_SPARSE_ATTN = True
+# USE_SPARSE_ATTN = False # full attention
 USE_TRITON_NSA = True
 USE_FLEX_FOR_FINE_SELECTION = False   # will push flex a bit, won't be efficient as each layer needs sparsity dynmically generated, but may be enough just to compare to full attention before going all-in on triton kernels
 QUERY_HEADS_SHARE_SELECTION = True    # if set to False, each query head can look at a different segment of their corresponding key / value head in GQA
@@ -71,8 +71,8 @@ USE_EFFICIENT_INFERENCE = True # needs validation still
 #          'mlp' (GroupedMLP), 'mean' (MeanPoolCompress)
 # COMPRESS_METHOD = 'mlp'
 # COMPRESS_METHOD = 'mean'
-# COMPRESS_METHOD = 'attn'
-COMPRESS_METHOD = 'conv'
+COMPRESS_METHOD = 'attn'
+# COMPRESS_METHOD = 'conv'
 
 # experiment related
 
