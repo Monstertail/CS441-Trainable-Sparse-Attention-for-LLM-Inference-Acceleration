@@ -3,6 +3,7 @@ import gzip
 import json
 import math
 import os
+import re
 import sys
 from typing import Tuple
 
@@ -289,8 +290,11 @@ def parse_args():
     parser.add_argument(
         "--seq_len",
         type=int,
-        default=512,
-        help="Sequence length used for evaluation windows",
+        default=None,
+        help=(
+            "Sequence length used for evaluation windows. "
+            "If omitted, will try to infer from checkpoint name (e.g. '..._seq4096_...')."
+        ),
     )
     parser.add_argument(
         "--batch_size",
@@ -319,6 +323,20 @@ def parse_args():
     return parser.parse_args()
 
 
+def infer_seq_len_from_checkpoint(path: str) -> int | None:
+    """
+    Infer seq_len from checkpoint filename.
+    Expected patterns: '..._seq512_...' or '..._seq4096_...'.
+    """
+    m = re.search(r"(?:^|[^0-9])seq(\d+)(?:[^0-9]|$)", os.path.basename(path))
+    if not m:
+        return None
+    try:
+        return int(m.group(1))
+    except ValueError:
+        return None
+
+
 def main():
     args = parse_args()
 
@@ -332,12 +350,21 @@ def main():
     model = build_model(args.model_type, device=device)
     load_checkpoint(model, args.checkpoint, device=device)
 
+    seq_len = args.seq_len
+    if seq_len is None:
+        seq_len = infer_seq_len_from_checkpoint(args.checkpoint)
+        if seq_len is None:
+            raise ValueError(
+                "seq_len was not provided and could not be inferred from checkpoint name. "
+                "Please pass --seq_len explicitly."
+            )
+
     print(f"==> In-distribution test on enwik8 (up to {args.max_id_tokens} tokens)")
     enwik8_tokens = load_enwik8_test(max_tokens=args.max_id_tokens)
     ppl_id, nll_id, tokens_id = compute_ppl_on_tokens(
         model=model,
         tokens=enwik8_tokens,
-        seq_len=args.seq_len,
+        seq_len=seq_len,
         batch_size=args.batch_size,
         device=device,
         name="in-distribution (enwik8)",
@@ -348,13 +375,15 @@ def main():
     ppl_ood, nll_ood, tokens_ood = compute_ppl_on_tokens(
         model=model,
         tokens=cs_tokens,
-        seq_len=args.seq_len,
+        seq_len=seq_len,
         batch_size=args.batch_size,
         device=device,
         name="out-of-distribution (cs441)",
     )
 
     print("\n===== Perplexity Summary =====")
+    print(f"Checkpoint: {args.checkpoint}")
+    print(f"Model type: {args.model_type} | seq_len: {seq_len} | batch_size: {args.batch_size}")
     print(f"In-distribution (enwik8):     PPL = {ppl_id:.4f} | avg NLL = {nll_id:.4f} | tokens = {tokens_id}")
     print(
         f"Out-of-distribution (cs441): PPL = {ppl_ood:.4f} | avg NLL = {nll_ood:.4f} | "

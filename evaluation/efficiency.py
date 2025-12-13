@@ -6,6 +6,7 @@ Measure efficiency of Native Sparse Attention pretrain models.
 
 import argparse
 import os
+import re
 import sys
 
 import torch
@@ -44,7 +45,7 @@ COMPRESS_BLOCK_SIZE = 16
 COMPRESS_BLOCK_SLIDING_STRIDE = 8
 
 FINE_BLOCK_SIZE = 16
-NUM_FINE_SELECTED = 1
+NUM_FINE_SELECTED = 4
 
 USE_DIFF_TOPK = True
 QUERY_HEADS_SHARE_SELECTION = True
@@ -263,8 +264,11 @@ def parse_args():
     parser.add_argument(
         "--seq_len",
         type=int,
-        default=512,
-        help="Sequence length for efficiency test",
+        default=None,
+        help=(
+            "Sequence length for efficiency test. "
+            "If omitted, will try to infer from checkpoint name (e.g. '..._seq4096_...')."
+        ),
     )
     parser.add_argument(
         "--warmup_iters",
@@ -275,7 +279,7 @@ def parse_args():
     parser.add_argument(
         "--measure_iters",
         type=int,
-        default=240,
+        default=10,
         help="Number of timing iterations",
     )
     parser.add_argument(
@@ -285,6 +289,20 @@ def parse_args():
         help="Device to run on (default: cuda)",
     )
     return parser.parse_args()
+
+
+def infer_seq_len_from_checkpoint(path: str) -> int | None:
+    """
+    Infer seq_len from checkpoint filename.
+    Expected patterns: '..._seq512_...' or '..._seq4096_...'.
+    """
+    m = re.search(r"(?:^|[^0-9])seq(\d+)(?:[^0-9]|$)", os.path.basename(path))
+    if not m:
+        return None
+    try:
+        return int(m.group(1))
+    except ValueError:
+        return None
 
 
 def main():
@@ -297,16 +315,25 @@ def main():
     torch.backends.cudnn.benchmark = True
 
     # Show NSA / model config before building the model
-    print_config()
+    # print_config()
 
     print(f"==> Loading model_type='{args.model_type}' from: {args.checkpoint}")
     model = build_model(args.model_type, device=device)
     load_checkpoint(model, args.checkpoint, device=device)
 
+    seq_len = args.seq_len
+    if seq_len is None:
+        seq_len = infer_seq_len_from_checkpoint(args.checkpoint)
+        if seq_len is None:
+            raise ValueError(
+                "seq_len was not provided and could not be inferred from checkpoint name. "
+                "Please pass --seq_len explicitly."
+            )
+
     avg_ms, tps, peak_mem = measure_efficiency(
         model=model,
         batch_size=args.batch_size,
-        seq_len=args.seq_len,
+        seq_len=seq_len,
         warmup_iters=args.warmup_iters,
         measure_iters=args.measure_iters,
         device=device,
@@ -314,6 +341,7 @@ def main():
 
     print(
         f"[{args.model_type}] "
+        f"(seq_len={seq_len}) "
         f"Avg latency: {avg_ms:.2f} ms / batch | "
         f"Throughput: {tps:.2f} tokens/s | "
         f"Peak memory: {peak_mem:.2f} MB"
