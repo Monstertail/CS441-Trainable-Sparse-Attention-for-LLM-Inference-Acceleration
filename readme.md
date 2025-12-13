@@ -201,8 +201,33 @@ These experiments guided the project direction: due to instability under memory 
 ### Evaluation
 
 Different compression modules and max context length
-#### pretraining time observation
+#### training time observation
 - training loss and evaluation loss (enwik8 val)
+##### Pretrain( train a small transformer from scratch)
+##### Fine-tune( based on Llama 3.2-12B)
+<figure style="display:flex; gap:16px; justify-content:center;">
+  <div style="text-align:center;">
+    <img src="assets/ft_ce_loss.png" width="95%">
+    <figcaption>(left) CE loss during fine-tuning.</figcaption>
+  </div>
+  <div style="text-align:center;">
+    <img src="assets/ft_mse_loss.png" width="95%">
+    <figcaption>(right) Average layerwise MSE loss during fine-tuning.</figcaption>
+  </div>
+</figure>
+
+We fine-tune a **sparse-attention student model** using an **adapter whose input is the original QKV representations**, with a **full-attention LLM as the teacher**.  
+We experimented with multiple objectives, including CE, KL, layer-wise MSE, and mixed losses. Empirically, **layer-wise MSE on hidden states leads to more stable and lower training loss than CE**, as shown in the figures.
+
+MSE outperforms CE because:
+- It provides denser supervision
+- It aligns representations instead of predictions
+- It is more robust to architectural mismatch (full → sparse attention)
+- It synergizes well with a QKV-based adapter
+
+But:
+- MSE is still data- and batch-hungry
+- Stability improves with larger batches, better normalization, or staged training
 
 #### Efficiency
 - metrics: peak memory, latency, throughput
