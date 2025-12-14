@@ -19,9 +19,26 @@ PPL_SCRIPT="${PROJECT_ROOT}/evaluation/perplexity.py"
 STEP="${1:-5000}"
 SEQ_LENS="${2:-"512 4096"}"
 
+# Optional:
+# - arg3: csv path
+# Any remaining args are passed through to evaluation/perplexity.py
+ARG3="${3:-}"
+DEFAULT_CSV_PATH="${SCRIPT_DIR}/ppl_step${STEP}.csv"
+
+if [[ -n "${ARG3}" && "${ARG3}" != -* ]]; then
+  CSV_PATH="${ARG3}"
+  EXTRA_ARGS=("${@:4}")
+else
+  CSV_PATH="${DEFAULT_CSV_PATH}"
+  EXTRA_ARGS=("${@:3}")
+fi
+
 echo "Evaluating perplexity at step ${STEP}"
 echo "Sequence lengths: ${SEQ_LENS}"
 echo "Checkpoint directory: ${CKPT_DIR}"
+echo "CSV output: ${CSV_PATH}"
+
+rm -f "${CSV_PATH}"
 
 for SEQ_LEN in ${SEQ_LENS}; do
   echo ""
@@ -35,7 +52,9 @@ for SEQ_LEN in ${SEQ_LENS}; do
     echo "==> full attention checkpoint"
     python "${PPL_SCRIPT}" \
       --checkpoint "${CKPT_DIR}/full_attn_seq${SEQ_LEN}_step_${STEP}.pt" \
-      --model_type full
+      --model_type full \
+      --csv_path "${CSV_PATH}" \
+      "${EXTRA_ARGS[@]}"
   else
     echo "Skip full attention: ${CKPT_DIR}/full_attn_seq${SEQ_LEN}_step_${STEP}.pt not found"
   fi
@@ -46,7 +65,9 @@ for SEQ_LEN in ${SEQ_LENS}; do
     echo "==> sparse conv checkpoint"
     python "${PPL_SCRIPT}" \
       --checkpoint "${CKPT_DIR}/sparse_attn_conv_c16_f16_n4_seq${SEQ_LEN}_step_${STEP}.pt" \
-      --model_type sparse_conv
+      --model_type sparse_conv \
+      --csv_path "${CSV_PATH}" \
+      "${EXTRA_ARGS[@]}"
   fi
 
   # Sparse mlp
@@ -55,7 +76,9 @@ for SEQ_LEN in ${SEQ_LENS}; do
     echo "==> sparse mlp checkpoint"
     python "${PPL_SCRIPT}" \
       --checkpoint "${CKPT_DIR}/sparse_attn_mlp_c16_f16_n4_seq${SEQ_LEN}_step_${STEP}.pt" \
-      --model_type sparse_mlp
+      --model_type sparse_mlp \
+      --csv_path "${CSV_PATH}" \
+      "${EXTRA_ARGS[@]}"
   fi
 
   # Sparse attn
@@ -64,7 +87,9 @@ for SEQ_LEN in ${SEQ_LENS}; do
     echo "==> sparse attn checkpoint"
     python "${PPL_SCRIPT}" \
       --checkpoint "${CKPT_DIR}/sparse_attn_attn_c16_f16_n4_seq${SEQ_LEN}_step_${STEP}.pt" \
-      --model_type sparse_attn
+      --model_type sparse_attn \
+      --csv_path "${CSV_PATH}" \
+      "${EXTRA_ARGS[@]}"
   fi
 
   # Sparse mean
@@ -73,6 +98,8 @@ for SEQ_LEN in ${SEQ_LENS}; do
     echo "==> sparse mean checkpoint"
     python "${PPL_SCRIPT}" \
       --checkpoint "${CKPT_DIR}/sparse_attn_mean_c16_f16_n4_seq${SEQ_LEN}_step_${STEP}.pt" \
-      --model_type sparse_mean
+      --model_type sparse_mean \
+      --csv_path "${CSV_PATH}" \
+      "${EXTRA_ARGS[@]}"
   fi
 done

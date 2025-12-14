@@ -8,6 +8,7 @@ import argparse
 import os
 import re
 import sys
+import csv
 
 import torch
 
@@ -206,7 +207,9 @@ def measure_efficiency(
         raise ValueError(f"seq_len must be > 1, got {seq_len}")
 
     if prompt_len is None:
-        prompt_len = max(1, seq_len // 2)
+        # Default: 80% prompt, 20% decode
+        prompt_len = int(seq_len * 0.8)
+        prompt_len = min(max(1, prompt_len), seq_len - 1)
     if gen_len is None:
         gen_len = max(1, seq_len - prompt_len)
 
@@ -224,12 +227,7 @@ def measure_efficiency(
     )
     prompt = token_buffer[:, :prompt_len]
 
-    # Full-attention path in this repo does NOT support a correct KV-cache inferencing path:
-    # when cache is provided, Transformer.forward embeds only the last token, and full attention
-    # would then attend over only that token (losing prompt context). So we must disable cache.
-    if use_kv_cache and isinstance(model, Transformer) and not getattr(model, "use_sparse_attn", False):
-        print("[warn] model is full attention; disabling KV cache for correctness in decode benchmark.")
-        use_kv_cache = False
+    # KV-cache is supported for both sparse and full attention (full cache added in transformer.py).
 
     # -----------------------
     # Prefill (prompt forward)
@@ -243,8 +241,6 @@ def measure_efficiency(
             else:
                 _ = model(prompt)
     torch.cuda.synchronize(device)
-
-    torch.cuda.reset_peak_memory_stats(device)
 
     start_event = torch.cuda.Event(enable_timing=True)
     end_event = torch.cuda.Event(enable_timing=True)
@@ -264,8 +260,6 @@ def measure_efficiency(
 
     prefill_tokens_per_batch = batch_size * prompt_len
     prefill_tokens_per_sec = prefill_tokens_per_batch / (prefill_avg_ms_per_batch / 1000.0)
-
-    prefill_peak_mem_mb = torch.cuda.max_memory_allocated(device) / 1024 ** 2
 
     # -----------------------
     # Decode (autoregressive)
@@ -292,7 +286,6 @@ def measure_efficiency(
                 cur_len += 1
 
     torch.cuda.synchronize(device)
-    torch.cuda.reset_peak_memory_stats(device)
 
     start_event = torch.cuda.Event(enable_timing=True)
     end_event = torch.cuda.Event(enable_timing=True)
@@ -326,7 +319,46 @@ def measure_efficiency(
     decode_tokens_per_run = batch_size * gen_len
     decode_tokens_per_sec = decode_tokens_per_run / (decode_avg_ms_per_run / 1000.0)
 
-    decode_peak_mem_mb = torch.cuda.max_memory_allocated(device) / 1024 ** 2
+    # -----------------------
+    # Theoretical KV-cache memory + "saving" estimate
+    # -----------------------
+    # NOTE: This is a THEORY metric based on "selected tokens per query".
+    # The actual implementation may cache more (e.g. full k/v + compressed k/v for sparse).
+
+    def _bytes_per_elem_from_model(m: torch.nn.Module) -> int:
+        try:
+            p = next(m.parameters())
+            dt = p.dtype
+        except StopIteration:
+            dt = torch.float32
+        if dt in (torch.float16, torch.bfloat16):
+            return 2
+        if dt == torch.float32:
+            return 4
+        if dt == torch.float64:
+            return 8
+        return torch.tensor([], dtype=dt).element_size()
+
+    bytes_per_elem = _bytes_per_elem_from_model(model)
+    kv_heads = DEFAULT_KV_HEADS
+    dim_head = DEFAULT_DIM_HEAD
+
+    cache_len_end = prompt_len + gen_len
+
+    # full attention attends to all tokens
+    full_attended_kv_tokens = cache_len_end
+
+    # sparse attention attends to a bounded number of tokens per query
+    selected_tokens_per_query = SLIDING_WINDOW_SIZE + NUM_FINE_SELECTED * FINE_BLOCK_SIZE
+    sparse_attended_kv_tokens = min(cache_len_end, selected_tokens_per_query)
+
+    # KV cache memory for storing K and V (two tensors) per layer (bytes)
+    kv_cache_full_bytes = 2 * batch_size * kv_heads * full_attended_kv_tokens * dim_head * bytes_per_elem
+    kv_cache_sparse_bytes = 2 * batch_size * kv_heads * sparse_attended_kv_tokens * dim_head * bytes_per_elem
+
+    kv_cache_saving_ratio = 0.0
+    if kv_cache_full_bytes > 0:
+        kv_cache_saving_ratio = max(0.0, 1.0 - (kv_cache_sparse_bytes / float(kv_cache_full_bytes)))
 
     return {
         "seq_len": seq_len,
@@ -335,10 +367,16 @@ def measure_efficiency(
         "use_kv_cache": use_kv_cache,
         "prefill_avg_ms_per_batch": prefill_avg_ms_per_batch,
         "prefill_tokens_per_sec": prefill_tokens_per_sec,
-        "prefill_peak_mem_mb": prefill_peak_mem_mb,
         "decode_avg_ms_per_run": decode_avg_ms_per_run,
         "decode_tokens_per_sec": decode_tokens_per_sec,
-        "decode_peak_mem_mb": decode_peak_mem_mb,
+        "bytes_per_elem": bytes_per_elem,
+        "kv_heads": kv_heads,
+        "dim_head": dim_head,
+        "cache_len_end": cache_len_end,
+        "selected_tokens_per_query": selected_tokens_per_query,
+        "kv_cache_full_bytes": kv_cache_full_bytes,
+        "kv_cache_sparse_bytes": kv_cache_sparse_bytes,
+        "kv_cache_saving_ratio": kv_cache_saving_ratio,
     }
 
 
@@ -378,7 +416,7 @@ def parse_args():
         "--prompt_len",
         type=int,
         default=None,
-        help="Prompt length for prefill. Default: seq_len//2",
+        help="Prompt length for prefill. Default: floor(0.8 * seq_len)",
     )
     parser.add_argument(
         "--gen_len",
@@ -389,7 +427,13 @@ def parse_args():
     parser.add_argument(
         "--no_kv_cache",
         action="store_true",
-        help="Disable KV cache in decode benchmark (cache is only supported/correct for sparse attention in this repo).",
+        help="Disable KV cache in decode benchmark.",
+    )
+    parser.add_argument(
+        "--csv_path",
+        type=str,
+        default=None,
+        help="If set, append results as one row to this CSV file (created with header if missing).",
     )
     parser.add_argument(
         "--warmup_iters",
@@ -467,14 +511,56 @@ def main():
     print(f"[{args.model_type}] seq_len={stats['seq_len']} prompt_len={stats['prompt_len']} gen_len={stats['gen_len']} kv_cache={cache_str}")
     print(
         f"  Prefill: {stats['prefill_avg_ms_per_batch']:.2f} ms / batch | "
-        f"{stats['prefill_tokens_per_sec']:.2f} tokens/s | "
-        f"peak mem {stats['prefill_peak_mem_mb']:.2f} MB"
+        f"{stats['prefill_tokens_per_sec']:.2f} tokens/s"
     )
     print(
         f"  Decode : {stats['decode_avg_ms_per_run']:.2f} ms / run (gen_len={stats['gen_len']}) | "
-        f"{stats['decode_tokens_per_sec']:.2f} tokens/s | "
-        f"peak mem {stats['decode_peak_mem_mb']:.2f} MB"
+        f"{stats['decode_tokens_per_sec']:.2f} tokens/s"
     )
+    print(
+        "  KV-cache theory (per-layer K/V bytes): "
+        f"full={stats['kv_cache_full_bytes']} | "
+        f"sparse(selected)={stats['kv_cache_sparse_bytes']} | "
+        f"saving={stats['kv_cache_saving_ratio']:.4f} "
+        f"(selected_tokens_per_query={stats['selected_tokens_per_query']}, cache_len_end={stats['cache_len_end']})"
+    )
+
+    if args.csv_path:
+        row = {
+            "checkpoint": args.checkpoint,
+            "model_type": args.model_type,
+            "device": args.device,
+            "batch_size": args.batch_size,
+            "seq_len": stats["seq_len"],
+            "prompt_len": stats["prompt_len"],
+            "gen_len": stats["gen_len"],
+            "kv_cache": int(stats["use_kv_cache"]),
+            "warmup_iters": args.warmup_iters,
+            "measure_iters": args.measure_iters,
+            "prefill_avg_ms_per_batch": stats["prefill_avg_ms_per_batch"],
+            "prefill_tokens_per_sec": stats["prefill_tokens_per_sec"],
+            "decode_avg_ms_per_run": stats["decode_avg_ms_per_run"],
+            "decode_tokens_per_sec": stats["decode_tokens_per_sec"],
+            "bytes_per_elem": stats["bytes_per_elem"],
+            "kv_heads": stats["kv_heads"],
+            "dim_head": stats["dim_head"],
+            "cache_len_end": stats["cache_len_end"],
+            "selected_tokens_per_query": stats["selected_tokens_per_query"],
+            "kv_cache_full_bytes": stats["kv_cache_full_bytes"],
+            "kv_cache_sparse_bytes": stats["kv_cache_sparse_bytes"],
+            "kv_cache_saving_ratio": stats["kv_cache_saving_ratio"],
+        }
+
+        out_dir = os.path.dirname(os.path.abspath(args.csv_path))
+        if out_dir:
+            os.makedirs(out_dir, exist_ok=True)
+
+        write_header = not os.path.exists(args.csv_path) or os.path.getsize(args.csv_path) == 0
+        with open(args.csv_path, "a", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=list(row.keys()))
+            if write_header:
+                writer.writeheader()
+            writer.writerow(row)
 
 
 if __name__ == "__main__":

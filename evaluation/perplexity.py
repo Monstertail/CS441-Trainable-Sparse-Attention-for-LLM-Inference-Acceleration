@@ -1,4 +1,5 @@
 import argparse
+import csv
 import gzip
 import json
 import math
@@ -9,6 +10,7 @@ from typing import Tuple
 
 import numpy as np
 import torch
+import torch.nn.functional as F
 
 # ---------------------------------------------------------------------------
 # Import project modules (same trick as in pretrain/train.py)
@@ -207,6 +209,7 @@ def compute_ppl_on_tokens(
     batch_size: int,
     device: str,
     name: str,
+    use_kv_cache: bool = False,
 ) -> Tuple[float, float, int]:
     """Compute perplexity on a flat byte token stream."""
     model.eval()
@@ -239,24 +242,78 @@ def compute_ppl_on_tokens(
 
             if len(batch) == batch_size:
                 batch_tensor = torch.stack(batch, dim=0).to(device)
-                loss = model(batch_tensor, return_loss=True)
+                if not use_kv_cache:
+                    loss = model(batch_tensor, return_loss=True)
+                    n_tokens = (batch_tensor.size(1) - 1) * batch_tensor.size(0)
+                    total_nll += loss.item() * n_tokens
+                    total_tokens += n_tokens
+                    num_chunks += batch_tensor.size(0)
+                else:
+                    # Incremental teacher-forcing likelihood using KV cache.
+                    # This is slower than the dense loss path but allows toggling cache behavior.
+                    inp = batch_tensor[:, :-1]      # (B, seq_len)
+                    tgt = batch_tensor[:, 1:]       # (B, seq_len)
 
-                n_tokens = (batch_tensor.size(1) - 1) * batch_tensor.size(0)
-                total_nll += loss.item() * n_tokens
-                total_tokens += n_tokens
-                num_chunks += batch_tensor.size(0)
+                    cache = None
+                    step_nll = 0.0
+
+                    # first token prefill to seed cache + logits for position 0
+                    logits, cache = model(inp[:, :1], return_cache=True)
+                    step_nll += F.cross_entropy(
+                        logits[:, -1, :],
+                        tgt[:, 0],
+                        reduction="sum",
+                    ).item()
+
+                    # decode remaining positions with cache
+                    for t in range(1, inp.size(1)):
+                        logits, cache = model(inp[:, t : t + 1], cache=cache, return_cache=True)
+                        step_nll += F.cross_entropy(
+                            logits[:, -1, :],
+                            tgt[:, t],
+                            reduction="sum",
+                        ).item()
+
+                    total_nll += step_nll
+                    total_tokens += tgt.numel()
+                    num_chunks += batch_tensor.size(0)
 
                 batch = []
 
         # process remaining batch
         if batch:
             batch_tensor = torch.stack(batch, dim=0).to(device)
-            loss = model(batch_tensor, return_loss=True)
+            if not use_kv_cache:
+                loss = model(batch_tensor, return_loss=True)
+                n_tokens = (batch_tensor.size(1) - 1) * batch_tensor.size(0)
+                total_nll += loss.item() * n_tokens
+                total_tokens += n_tokens
+                num_chunks += batch_tensor.size(0)
+            else:
+                inp = batch_tensor[:, :-1]
+                tgt = batch_tensor[:, 1:]
 
-            n_tokens = (batch_tensor.size(1) - 1) * batch_tensor.size(0)
-            total_nll += loss.item() * n_tokens
-            total_tokens += n_tokens
-            num_chunks += batch_tensor.size(0)
+                cache = None
+                step_nll = 0.0
+
+                logits, cache = model(inp[:, :1], return_cache=True)
+                step_nll += F.cross_entropy(
+                    logits[:, -1, :],
+                    tgt[:, 0],
+                    reduction="sum",
+                ).item()
+
+                for t in range(1, inp.size(1)):
+                    logits, cache = model(inp[:, t : t + 1], cache=cache, return_cache=True)
+                    step_nll += F.cross_entropy(
+                        logits[:, -1, :],
+                        tgt[:, t],
+                        reduction="sum",
+                    ).item()
+
+                total_nll += step_nll
+                total_tokens += tgt.numel()
+                num_chunks += batch_tensor.size(0)
 
     if total_tokens == 0:
         raise RuntimeError(f"{name}: no tokens were evaluated.")
@@ -320,6 +377,20 @@ def parse_args():
         default="cuda",
         help="Device to run on (default: cuda)",
     )
+    parser.add_argument(
+        "--use_kv_cache",
+        action="store_true",
+        help=(
+            "Compute perplexity incrementally using KV cache (slower). "
+            "Default is the fast dense loss path (no cache)."
+        ),
+    )
+    parser.add_argument(
+        "--csv_path",
+        type=str,
+        default=None,
+        help="If set, append results as one row to this CSV file (created with header if missing).",
+    )
     return parser.parse_args()
 
 
@@ -329,6 +400,18 @@ def infer_seq_len_from_checkpoint(path: str) -> int | None:
     Expected patterns: '..._seq512_...' or '..._seq4096_...'.
     """
     m = re.search(r"(?:^|[^0-9])seq(\d+)(?:[^0-9]|$)", os.path.basename(path))
+    if not m:
+        return None
+    try:
+        return int(m.group(1))
+    except ValueError:
+        return None
+
+
+def infer_step_from_checkpoint(path: str) -> int | None:
+    """Infer training step from checkpoint filename (supports ..._step_XXXX.pt)."""
+    base = os.path.basename(path)
+    m = re.search(r"(?:^|[^0-9])step_(\d+)(?:[^0-9]|$)", base)
     if not m:
         return None
     try:
@@ -368,6 +451,7 @@ def main():
         batch_size=args.batch_size,
         device=device,
         name="in-distribution (enwik8)",
+        use_kv_cache=args.use_kv_cache,
     )
 
     print(f"\n==> Out-of-distribution test on cs441_synthetic_test.json (up to {args.max_ood_examples} QA pairs)")
@@ -379,17 +463,51 @@ def main():
         batch_size=args.batch_size,
         device=device,
         name="out-of-distribution (cs441)",
+        use_kv_cache=args.use_kv_cache,
     )
 
     print("\n===== Perplexity Summary =====")
     print(f"Checkpoint: {args.checkpoint}")
     print(f"Model type: {args.model_type} | seq_len: {seq_len} | batch_size: {args.batch_size}")
+    print(f"KV cache incremental PPL: {args.use_kv_cache}")
     print(f"In-distribution (enwik8):     PPL = {ppl_id:.4f} | avg NLL = {nll_id:.4f} | tokens = {tokens_id}")
     print(
         f"Out-of-distribution (cs441): PPL = {ppl_ood:.4f} | avg NLL = {nll_ood:.4f} | "
         f"tokens = {tokens_ood} | examples = {num_examples}"
     )
     print("==============================")
+
+    if args.csv_path:
+        step = infer_step_from_checkpoint(args.checkpoint)
+        row = {
+            "checkpoint": args.checkpoint,
+            "step": "" if step is None else step,
+            "model_type": args.model_type,
+            "device": args.device,
+            "seq_len": seq_len,
+            "batch_size": args.batch_size,
+            "max_id_tokens": args.max_id_tokens,
+            "max_ood_examples": args.max_ood_examples,
+            "use_kv_cache": int(args.use_kv_cache),
+            "ppl_id": ppl_id,
+            "nll_id": nll_id,
+            "tokens_id": tokens_id,
+            "ppl_ood": ppl_ood,
+            "nll_ood": nll_ood,
+            "tokens_ood": tokens_ood,
+            "ood_examples": num_examples,
+        }
+
+        out_dir = os.path.dirname(os.path.abspath(args.csv_path))
+        if out_dir:
+            os.makedirs(out_dir, exist_ok=True)
+
+        write_header = not os.path.exists(args.csv_path) or os.path.getsize(args.csv_path) == 0
+        with open(args.csv_path, "a", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=list(row.keys()))
+            if write_header:
+                writer.writeheader()
+            writer.writerow(row)
 
 
 if __name__ == "__main__":

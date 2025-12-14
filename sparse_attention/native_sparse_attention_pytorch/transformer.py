@@ -76,10 +76,10 @@ class Attention(Module):
 
         self.heads = heads
         kv_heads = default(kv_heads, heads)
+        self.kv_heads = kv_heads
         dim_inner = heads * dim_head
         dim_kv_inner = kv_heads * dim_head
 
-        self.kv_heads = kv_heads
         self.causal = causal
 
         self.rotary_embed = RotaryEmbedding(dim_head)
@@ -95,11 +95,59 @@ class Attention(Module):
 
     def forward(
         self,
-        x
+        x,
+        cache = None,
+        return_cache = False
     ):
 
         x = self.norm(x)
 
+        is_inferencing = exists(cache)
+
+        if is_inferencing:
+            # cache is expected to be (k, v) stored in kv_heads shape and already rotary-rotated
+            assert x.shape[1] == 1, 'input must be single tokens if inferencing with cache key values'
+            cache_k, cache_v = cache
+            cache_len = cache_k.shape[-2]
+
+            q = self.to_q(x)
+            k = self.to_k(x)
+            v = self.to_v(x)
+
+            q, k, v = map(self.split_heads, (q, k, v))
+
+            # rotate new token q/k with proper offset
+            rotated_q = self.rotary_embed.rotate_queries_or_keys(q, offset = cache_len)
+            k = self.rotary_embed.rotate_queries_or_keys(k, offset = cache_len)
+
+            # append to cache (cache stores rotated k/v in kv_heads space)
+            k = torch.cat((cache_k, k), dim = -2)
+            v = torch.cat((cache_v, v), dim = -2)
+
+            if return_cache:
+                cache_kv = (k, v)
+
+            # naive gqa - repeat kv heads up to query heads
+            if self.kv_heads != self.heads:
+                k, v = tuple(
+                    repeat(t, 'b h ... -> b (g h) ...', g = self.heads // self.kv_heads)
+                    for t in (k, v)
+                )
+
+            # in decode (q_len=1), keys contain only past + current, so no causal mask needed
+            out = F.scaled_dot_product_attention(
+                rotated_q, k, v,
+                is_causal = False
+            )
+
+            out = self.merge_heads(out)
+            out = self.to_out(out)
+
+            if not return_cache:
+                return out
+            return out, cache_kv
+
+        # training / prefill (no cache)
         q = self.to_q(x)
         k = self.to_k(x)
         v = self.to_v(x)
@@ -110,9 +158,17 @@ class Attention(Module):
 
         q, k = self.rotary_embed.rotate_queries_with_cached_keys(q, k)
 
+        if return_cache:
+            # cache stores rotated kv in kv_heads space (before repeating to full heads)
+            cache_kv = (k, v)
+
         # naive gqa
 
-        k, v = tuple(repeat(t, 'b h ... -> b (g h) ...', g = self.heads // self.kv_heads) for t in (k, v))
+        if self.kv_heads != self.heads:
+            k, v = tuple(
+                repeat(t, 'b h ... -> b (g h) ...', g = self.heads // self.kv_heads)
+                for t in (k, v)
+            )
 
         # attention branch
 
@@ -123,7 +179,11 @@ class Attention(Module):
 
         out = self.merge_heads(out)
 
-        return self.to_out(out)
+        out = self.to_out(out)
+
+        if not return_cache:
+            return out
+        return out, cache_kv
 
 # feedforward
 
@@ -322,11 +382,18 @@ class Transformer(Module):
                     # When not returning cache, SparseAttention returns only out
                     attn_out = attn_output
             else:
-                # full attention: no cache / masks, plain forward
-                attn_out = attn(tokens)
+                # full attention: now supports kv cache for inference
+                attn_output = attn(
+                    tokens,
+                    cache = next(iter_cache, None),
+                    return_cache = return_cache
+                )
+
                 if return_cache:
-                    # keep API compatible, but no real cache for full attention
-                    next_cache.append(None)
+                    attn_out, layer_cache = attn_output
+                    next_cache.append(layer_cache)
+                else:
+                    attn_out = attn_output
 
             tokens = attn_out + tokens
             tokens = ff(tokens) + tokens
