@@ -267,6 +267,204 @@ We can see the inference time evaluation is quite aligned with the training beha
 - sparse attention+ `MeanPoolCompress` is the worse in perplexity because it's parameter-free.
 - In-distribution evaluation has lower perplexity than out-of-distribution case.
 
+<details>
+<summary><b>Generation examples (step=5000, seq_len=4096)</b></summary>
+
+- **Setup**: gen_len=256, temperature=0.0, kv_cache=enabled  
+- **Note**: generations are truncated in README for readability
+
+#### OOD (CS441 synthetic QA)
+**Prompt**
+```text
+Question: Which ensemble method can be easily parallelized (trained simultaneously)?
+a) Boosting (e.g., AdaBoost, XGBoost)
+b) Bagging (e.g., Random Forest)
+c) RNNs
+d) Markov Chains
+Answer:
+```
+
+**Generated outputs**
+- **Full attention**
+```text
+ [[Adam (e.g., Adam and Adam and Adam and Adam and Adam and Adam and Adam and Adam and Adam and Adam and Adam and Adam and Adam and Adam and Adam and Adam and Adam and Adam and Adam and Adam and Adam and Adam and Adam and Adam and Adam and Adam and Adam an
+```
+- **Sparse attention + ConvLinear**
+```text
+ A statistical statistics (e.g. [[Adam Statistics]])
+
+==See also==
+*[[Adam Statistics]]
+*[[Adam Statistics]]
+*[[Adam Statistics]]
+*[[Adam Statistics]]
+*[[Adam Statistics]]
+*[[Adam Statistics]]
+*[[Adam Statistics]]
+*[[Adam Statistics]]
+*[[Adam Statistics]]
+```
+- **Sparse attention + GroupedMLP**
+```text
+ [[Andrew Harrison]], [[Andrew Harrison]], [[Andrew Harrison]], [[Andrew Harrison]], [[Andrew Harrison]], [[Andrew Harrison]], [[Andrew Harrison]], [[Andrew Harrison]], [[Andrew Harrison]], [[Andrew Harrison]], [[Andrew Harrison]], [[Andrew Harrison]], [[A
+```
+- **Sparse attention + AttentionPool**
+```text
+ Books and Books, Books, Books, Books, Books, Books, Books, Books, Books, Books, Books, Books, Books, Books, Books, Books, Books, Books, Books, Books, Books, Books, Books, Books, Books, Books, Books, Books, Books, Books, Books, Books, Books, Books, Books,
+```
+- **Sparse attention + MeanPool**
+```text
+ (e.g. [[Random Booster]], [[Random Booster]], [[Random Booster]], [[Random Booster]], [[Random Booster]], [[Random Booster]], [[Random Booster]], [[Random Booster]], [[Random Booster]], [[Random Booster]], [[Random Booster]], [[Random Booster]], [[Random
+```
+
+#### ID (enwik8 validation snippet)
+**Prompt**
+```text
+ern highlands and does not partake of any other area's crops.  The most famous member of this crop system is [[coffee]], but one of the more useful plants is [[sorghum]], a dry-land grain.
+
+Ancient cultures also existed all along the [[Nile]], and in modern-day [[Ghana]] &lt;!-- and much more... --&gt;.
+
+==History of North Africa (3500 B.C. - 1500 A.D.)==
+=== Ancient Egypt ===
+''Main articles: [[History of Ancient Egypt]], [[Kush]]''
+
+Africa's earliest evidence of written history was in [[Ancient Egypt]], a
+```
+
+**Generated outputs**
+- **Full attention**
+```text
+nd is a [[property control]] of the [[Ancient Egypt]] and [[Ancient Egypt]]. The [[Ancient Egypt]] is a [[property control]] of the [[Ancient Egypt]] and [[Ancient Egypt]] in [[Ancient Egypt]]. The Ancient Egypt is a [[property control]] in [[Ancient Egypt
+```
+- **Sparse attention + ConvLinear**
+```text
+nd [[Ancient Egypt]] and [[Ancient Egypt]] are also a [[constitutional egopteration]] of [[Ancient Egypt]].  The [[Ancient Egypt]] are also a [[constitutional distribution of Egypt]] and [[constitutional distribution]] are the [[Constitutional distribution
+```
+- **Sparse attention + GroupedMLP**
+```text
+nd in [[Ancient Egypt]].  The [[Ancient Egypt|Ancient Egypt]] is a [[computer science]] of [[Ancient Egypt|Ancient Egypt]] and [[Ancient Egypt|Ancient Egypt]] in [[Ancient Egypt|Ancient Egypt]] and [[Ancient Egypt|Ancient Egypt]] in [[Ancient Egypt|Ancient
+```
+- **Sparse attention + AttentionPool**
+```text
+nd the [[Ancient Egypt]] is the [[Ancient Egypt]]. The [[Ancient Egypt]] is the [[Ancient Egyptian Egypt]] and the [[Ancient Egypt]] is the [[Ancient Egyptian Egypt]] of the [[Ancient Egypt]]. The [[Ancient Egypt]] is the [[Ancient Egyptian Egypt]] and the
+```
+- **Sparse attention + MeanPool**
+```text
+nd the [[Ancient Egyptians]] who was a second programmer of the [[Ancient Egyptians]] and [[Ancient Egyptians]] are also commonly used in the [[United Kingdom]] and [[United Kingdom|British]] [[common language|common]] [[common language|common]] and [[comm
+```
+
+</details>
+
+<details>
+<summary><b>Generation examples (step=5000, seq_len=512)</b></summary>
+
+- **Setup**: gen_len=256, temperature=0.0, kv_cache=enabled  
+- **OOD example**: cs441 example_idx=0  
+- **ID example**: enwik8 valid offset=0 (prompt is raw bytes, rendered as text)  
+- **Note**: generations are truncated in README for readability
+
+#### OOD (CS441 synthetic QA)
+**Prompt**
+```text
+Question: Which ensemble method can be easily parallelized (trained simultaneously)?
+a) Boosting (e.g., AdaBoost, XGBoost)
+b) Bagging (e.g., Random Forest)
+c) RNNs
+d) Markov Chains
+Answer:
+```
+**Generated outputs**
+- **Full attention**
+```text
+ Baggart (except for the start of the star chairman of the star chain (except for the star) and the star chain of the star chain (except for the star). The star chain is the star chain of the star chain is the star chain of the star chain is the star chain
+```
+- **Sparse attention + ConvLinear**
+```text
+ The Baseball Company (Baseball Company)
+
+== Comparison ==
+
+The Baseball Company (Cambridge Cambridge) ==
+
+The Baseball Cambridge Cambridge (Babylon) is a complete state of the [[Babylonian Cambridge]] (Babylon 1976) and the [[Babylonian Cambridge]] (Babyl
+```
+- **Sparse attention + GroupedMLP**
+```text
+ Booston March (1998)
+
+=== Comparison of Chain ===
+
+* [[Comparison of China]]
+* [[Comparison of China]]
+* [[Comparison of China]]
+* [[Comparison of China]]
+* [[Comparison of China]]
+* [[Comparison of China]]
+* [[Comparison of China]]
+* [[Comparison of Chin
+```
+- **Sparse attention + AttentionPool**
+```text
+ A British Columbia Company (Babbage Company)
+
+=============
+*[[Albert Collection of Albania]]
+*[[Albert College]]
+*[[Albert College]]
+*[[Albert College]]
+*[[Albert College]]
+*[[Albert College]]
+*[[Albert College]]
+*[[Albert College]]
+*[[Albert College]]
+*
+```
+- **Sparse attention + MeanPool**
+```text
+ [[Battle of Barcelona]]
+
+=== Background ===
+
+The Basque states are also seen as a single state of the state of the state of the state of the state of the state of the state of the state of the state of the state of the state of the state of the state of t
+```
+
+#### ID (enwik8 validation snippet)
+**Prompt**
+```text
+ern highlands and does not partake of any other area's crops.  The most famous member of this crop system is [[coffee]], but one of the more useful plants is [[sorghum]], a dry-land grain.
+
+Ancient cultures also existed all along the [[Nile]], and in modern-day [[Ghana]] &lt;!-- and much more... --&gt;.
+
+==History of North Africa (3500 B.C. - 1500 A.D.)==
+=== Ancient Egypt ===
+''Main articles: [[History of Ancient Egypt]], [[Kush]]''
+
+Africa's earliest evidence of written history was in [[Ancient Egypt]], a
+```
+**Generated outputs**
+- **Full attention**
+```text
+nd in [[1970]]. The [[Ancient Greek programming language|Ancient Greek]] and [[Ancientiga]] and [[Ancientiversea]] and [[Ancientive model|Ancientive model]] and [[Ancientific model]] in [[1970]]. The [[Ancientived model]] is a [[first store]] and [[1970]]
+```
+- **Sparse attention + ConvLinear**
+```text
+nd the [[Arizona Scottish Egyptian School]] (1998). The [[Arizona Scottish Parliament]] (1988) and the [[Arizona Scottish Parliament]] (1988). The [[Arizona Party of Argentina|Argentina]] (1989) and the [[Argentina of Argentina|Argentina]] (1998) and the [
+```
+- **Sparse attention + GroupedMLP**
+```text
+nd the [[Arabic numeral election]] of the [[Arabic numeral election]] in [[1980]]. The [[Arabic numeral election in Arabic languages]] is a [[constitution of Arabic languages]] ([[1980]]), and [[Arabic language|Arabic]] are the [[Arabic languages]] of [[Ar
+```
+- **Sparse attention + AttentionPool**
+```text
+nd the [[Anti-Semitism]] and [[Anti-Semitism]] are also a [[statistical system]] of [[state]] and [[statute]]. The [[state]] is a [[state]] of [[state]] and [[statute]] of [[state]] and [[statute]]. The [[state]] is a [[state]] of [[state]] and [[stroke]]
+```
+- **Sparse attention + MeanPool**
+```text
+nd the [[Anglo-Saxon English language|Alexander English]] and [[Alexander English]] and [[Alexander English]] and [[Alexander English]] and [[Alexander English]] and [[Alexander English]] and [[Alexander English]] and [[Alexander English]] and [[Alexander
+```
+
+</details>
+
 
 ## 📝 Citation
 
