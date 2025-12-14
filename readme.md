@@ -267,6 +267,94 @@ We can see the inference time evaluation is quite aligned with the training beha
 - sparse attention+ `MeanPoolCompress` is the worse in perplexity because it's parameter-free.
 - In-distribution evaluation has lower perplexity than out-of-distribution case.
 
+<details>
+<summary><b>Generation examples (step=5000, seq_len=4096)</b></summary>
+
+- **Setup**: gen_len=256, temperature=0.0, kv_cache=enabled  
+- **Note**: generations are truncated in README for readability
+
+#### OOD (CS441 synthetic QA)
+**Prompt**
+```text
+Question: Which ensemble method can be easily parallelized (trained simultaneously)?
+a) Boosting (e.g., AdaBoost, XGBoost)
+b) Bagging (e.g., Random Forest)
+c) RNNs
+d) Markov Chains
+Answer:
+```
+
+**Generated outputs**
+- **Full attention**
+```text
+ [[Adam (e.g., Adam and Adam and Adam and Adam and Adam and Adam and Adam and Adam and Adam and Adam and Adam and Adam and Adam and Adam and Adam and Adam and Adam and Adam and Adam and Adam and Adam and Adam and Adam and Adam and Adam and Adam and Adam an
+```
+- **Sparse attention + ConvLinear**
+```text
+ A statistical statistics (e.g. [[Adam Statistics]])
+
+==See also==
+*[[Adam Statistics]]
+*[[Adam Statistics]]
+*[[Adam Statistics]]
+*[[Adam Statistics]]
+*[[Adam Statistics]]
+*[[Adam Statistics]]
+*[[Adam Statistics]]
+*[[Adam Statistics]]
+*[[Adam Statistics]]
+```
+- **Sparse attention + GroupedMLP**
+```text
+ [[Andrew Harrison]], [[Andrew Harrison]], [[Andrew Harrison]], [[Andrew Harrison]], [[Andrew Harrison]], [[Andrew Harrison]], [[Andrew Harrison]], [[Andrew Harrison]], [[Andrew Harrison]], [[Andrew Harrison]], [[Andrew Harrison]], [[Andrew Harrison]], [[A
+```
+- **Sparse attention + AttentionPool**
+```text
+ Books and Books, Books, Books, Books, Books, Books, Books, Books, Books, Books, Books, Books, Books, Books, Books, Books, Books, Books, Books, Books, Books, Books, Books, Books, Books, Books, Books, Books, Books, Books, Books, Books, Books, Books, Books,
+```
+- **Sparse attention + MeanPool**
+```text
+ (e.g. [[Random Booster]], [[Random Booster]], [[Random Booster]], [[Random Booster]], [[Random Booster]], [[Random Booster]], [[Random Booster]], [[Random Booster]], [[Random Booster]], [[Random Booster]], [[Random Booster]], [[Random Booster]], [[Random
+```
+
+#### ID (enwik8 validation snippet)
+**Prompt**
+```text
+ern highlands and does not partake of any other area's crops.  The most famous member of this crop system is [[coffee]], but one of the more useful plants is [[sorghum]], a dry-land grain.
+
+Ancient cultures also existed all along the [[Nile]], and in modern-day [[Ghana]] &lt;!-- and much more... --&gt;.
+
+==History of North Africa (3500 B.C. - 1500 A.D.)==
+=== Ancient Egypt ===
+''Main articles: [[History of Ancient Egypt]], [[Kush]]''
+
+Africa's earliest evidence of written history was in [[Ancient Egypt]], a
+```
+
+**Generated outputs**
+- **Full attention**
+```text
+nd is a [[property control]] of the [[Ancient Egypt]] and [[Ancient Egypt]]. The [[Ancient Egypt]] is a [[property control]] of the [[Ancient Egypt]] and [[Ancient Egypt]] in [[Ancient Egypt]]. The Ancient Egypt is a [[property control]] in [[Ancient Egypt
+```
+- **Sparse attention + ConvLinear**
+```text
+nd [[Ancient Egypt]] and [[Ancient Egypt]] are also a [[constitutional egopteration]] of [[Ancient Egypt]].  The [[Ancient Egypt]] are also a [[constitutional distribution of Egypt]] and [[constitutional distribution]] are the [[Constitutional distribution
+```
+- **Sparse attention + GroupedMLP**
+```text
+nd in [[Ancient Egypt]].  The [[Ancient Egypt|Ancient Egypt]] is a [[computer science]] of [[Ancient Egypt|Ancient Egypt]] and [[Ancient Egypt|Ancient Egypt]] in [[Ancient Egypt|Ancient Egypt]] and [[Ancient Egypt|Ancient Egypt]] in [[Ancient Egypt|Ancient
+```
+- **Sparse attention + AttentionPool**
+```text
+nd the [[Ancient Egypt]] is the [[Ancient Egypt]]. The [[Ancient Egypt]] is the [[Ancient Egyptian Egypt]] and the [[Ancient Egypt]] is the [[Ancient Egyptian Egypt]] of the [[Ancient Egypt]]. The [[Ancient Egypt]] is the [[Ancient Egyptian Egypt]] and the
+```
+- **Sparse attention + MeanPool**
+```text
+nd the [[Ancient Egyptians]] who was a second programmer of the [[Ancient Egyptians]] and [[Ancient Egyptians]] are also commonly used in the [[United Kingdom]] and [[United Kingdom|British]] [[common language|common]] [[common language|common]] and [[comm
+```
+
+</details>
+
 
 ## 📝 Citation
 

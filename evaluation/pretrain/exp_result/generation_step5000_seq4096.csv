@@ -1,0 +1,108 @@
+dataset,checkpoint,step,seq_len,model_type,example_idx,id_offset,question,answer_gt,prompt,gen_len,temperature,use_kv_cache,generated
+ood,/home/xinyuya2/jinwei/nsa/CS441-Trainable-Sparse-Attention-for-LLM-Inference-Acceleration/pretrain/ckpt/full_attn_seq4096_step_5000.pt,5000,4096,full,0,,"Which ensemble method can be easily parallelized (trained simultaneously)?
+a) Boosting (e.g., AdaBoost, XGBoost)
+b) Bagging (e.g., Random Forest)
+c) RNNs
+d) Markov Chains",b,"Question: Which ensemble method can be easily parallelized (trained simultaneously)?
+a) Boosting (e.g., AdaBoost, XGBoost)
+b) Bagging (e.g., Random Forest)
+c) RNNs
+d) Markov Chains
+Answer:",256,0.0,1," [[Adam (e.g., Adam and Adam and Adam and Adam and Adam and Adam and Adam and Adam and Adam and Adam and Adam and Adam and Adam and Adam and Adam and Adam and Adam and Adam and Adam and Adam and Adam and Adam and Adam and Adam and Adam and Adam and Adam an"
+id,/home/xinyuya2/jinwei/nsa/CS441-Trainable-Sparse-Attention-for-LLM-Inference-Acceleration/pretrain/ckpt/full_attn_seq4096_step_5000.pt,5000,4096,full,,0,,,"ern highlands and does not partake of any other area's crops.  The most famous member of this crop system is [[coffee]], but one of the more useful plants is [[sorghum]], a dry-land grain.
+
+Ancient cultures also existed all along the [[Nile]], and in modern-day [[Ghana]] &lt;!-- and much more... --&gt;.
+
+==History of North Africa (3500 B.C. - 1500 A.D.)==
+=== Ancient Egypt ===
+''Main articles: [[History of Ancient Egypt]], [[Kush]]''
+
+Africa's earliest evidence of written history was in [[Ancient Egypt]], a",256,0.0,1,nd is a [[property control]] of the [[Ancient Egypt]] and [[Ancient Egypt]]. The [[Ancient Egypt]] is a [[property control]] of the [[Ancient Egypt]] and [[Ancient Egypt]] in [[Ancient Egypt]]. The Ancient Egypt is a [[property control]] in [[Ancient Egypt
+ood,/home/xinyuya2/jinwei/nsa/CS441-Trainable-Sparse-Attention-for-LLM-Inference-Acceleration/pretrain/ckpt/sparse_attn_conv_c16_f16_n4_seq4096_step_5000.pt,5000,4096,sparse_conv,0,,"Which ensemble method can be easily parallelized (trained simultaneously)?
+a) Boosting (e.g., AdaBoost, XGBoost)
+b) Bagging (e.g., Random Forest)
+c) RNNs
+d) Markov Chains",b,"Question: Which ensemble method can be easily parallelized (trained simultaneously)?
+a) Boosting (e.g., AdaBoost, XGBoost)
+b) Bagging (e.g., Random Forest)
+c) RNNs
+d) Markov Chains
+Answer:",256,0.0,1," A statistical statistics (e.g. [[Adam Statistics]])
+
+==See also==
+*[[Adam Statistics]]
+*[[Adam Statistics]]
+*[[Adam Statistics]]
+*[[Adam Statistics]]
+*[[Adam Statistics]]
+*[[Adam Statistics]]
+*[[Adam Statistics]]
+*[[Adam Statistics]]
+*[[Adam Statistics]]
+"
+id,/home/xinyuya2/jinwei/nsa/CS441-Trainable-Sparse-Attention-for-LLM-Inference-Acceleration/pretrain/ckpt/sparse_attn_conv_c16_f16_n4_seq4096_step_5000.pt,5000,4096,sparse_conv,,0,,,"ern highlands and does not partake of any other area's crops.  The most famous member of this crop system is [[coffee]], but one of the more useful plants is [[sorghum]], a dry-land grain.
+
+Ancient cultures also existed all along the [[Nile]], and in modern-day [[Ghana]] &lt;!-- and much more... --&gt;.
+
+==History of North Africa (3500 B.C. - 1500 A.D.)==
+=== Ancient Egypt ===
+''Main articles: [[History of Ancient Egypt]], [[Kush]]''
+
+Africa's earliest evidence of written history was in [[Ancient Egypt]], a",256,0.0,1,nd [[Ancient Egypt]] and [[Ancient Egypt]] are also a [[constitutional egopteration]] of [[Ancient Egypt]].  The [[Ancient Egypt]] are also a [[constitutional distribution of Egypt]] and [[constitutional distribution]] are the [[Constitutional distribution
+ood,/home/xinyuya2/jinwei/nsa/CS441-Trainable-Sparse-Attention-for-LLM-Inference-Acceleration/pretrain/ckpt/sparse_attn_mlp_c16_f16_n4_seq4096_step_5000.pt,5000,4096,sparse_mlp,0,,"Which ensemble method can be easily parallelized (trained simultaneously)?
+a) Boosting (e.g., AdaBoost, XGBoost)
+b) Bagging (e.g., Random Forest)
+c) RNNs
+d) Markov Chains",b,"Question: Which ensemble method can be easily parallelized (trained simultaneously)?
+a) Boosting (e.g., AdaBoost, XGBoost)
+b) Bagging (e.g., Random Forest)
+c) RNNs
+d) Markov Chains
+Answer:",256,0.0,1," [[Andrew Harrison]], [[Andrew Harrison]], [[Andrew Harrison]], [[Andrew Harrison]], [[Andrew Harrison]], [[Andrew Harrison]], [[Andrew Harrison]], [[Andrew Harrison]], [[Andrew Harrison]], [[Andrew Harrison]], [[Andrew Harrison]], [[Andrew Harrison]], [[A"
+id,/home/xinyuya2/jinwei/nsa/CS441-Trainable-Sparse-Attention-for-LLM-Inference-Acceleration/pretrain/ckpt/sparse_attn_mlp_c16_f16_n4_seq4096_step_5000.pt,5000,4096,sparse_mlp,,0,,,"ern highlands and does not partake of any other area's crops.  The most famous member of this crop system is [[coffee]], but one of the more useful plants is [[sorghum]], a dry-land grain.
+
+Ancient cultures also existed all along the [[Nile]], and in modern-day [[Ghana]] &lt;!-- and much more... --&gt;.
+
+==History of North Africa (3500 B.C. - 1500 A.D.)==
+=== Ancient Egypt ===
+''Main articles: [[History of Ancient Egypt]], [[Kush]]''
+
+Africa's earliest evidence of written history was in [[Ancient Egypt]], a",256,0.0,1,nd in [[Ancient Egypt]].  The [[Ancient Egypt|Ancient Egypt]] is a [[computer science]] of [[Ancient Egypt|Ancient Egypt]] and [[Ancient Egypt|Ancient Egypt]] in [[Ancient Egypt|Ancient Egypt]] and [[Ancient Egypt|Ancient Egypt]] in [[Ancient Egypt|Ancient
+ood,/home/xinyuya2/jinwei/nsa/CS441-Trainable-Sparse-Attention-for-LLM-Inference-Acceleration/pretrain/ckpt/sparse_attn_attn_c16_f16_n4_seq4096_step_5000.pt,5000,4096,sparse_attn,0,,"Which ensemble method can be easily parallelized (trained simultaneously)?
+a) Boosting (e.g., AdaBoost, XGBoost)
+b) Bagging (e.g., Random Forest)
+c) RNNs
+d) Markov Chains",b,"Question: Which ensemble method can be easily parallelized (trained simultaneously)?
+a) Boosting (e.g., AdaBoost, XGBoost)
+b) Bagging (e.g., Random Forest)
+c) RNNs
+d) Markov Chains
+Answer:",256,0.0,1," Books and Books, Books, Books, Books, Books, Books, Books, Books, Books, Books, Books, Books, Books, Books, Books, Books, Books, Books, Books, Books, Books, Books, Books, Books, Books, Books, Books, Books, Books, Books, Books, Books, Books, Books, Books, "
+id,/home/xinyuya2/jinwei/nsa/CS441-Trainable-Sparse-Attention-for-LLM-Inference-Acceleration/pretrain/ckpt/sparse_attn_attn_c16_f16_n4_seq4096_step_5000.pt,5000,4096,sparse_attn,,0,,,"ern highlands and does not partake of any other area's crops.  The most famous member of this crop system is [[coffee]], but one of the more useful plants is [[sorghum]], a dry-land grain.
+
+Ancient cultures also existed all along the [[Nile]], and in modern-day [[Ghana]] &lt;!-- and much more... --&gt;.
+
+==History of North Africa (3500 B.C. - 1500 A.D.)==
+=== Ancient Egypt ===
+''Main articles: [[History of Ancient Egypt]], [[Kush]]''
+
+Africa's earliest evidence of written history was in [[Ancient Egypt]], a",256,0.0,1,nd the [[Ancient Egypt]] is the [[Ancient Egypt]]. The [[Ancient Egypt]] is the [[Ancient Egyptian Egypt]] and the [[Ancient Egypt]] is the [[Ancient Egyptian Egypt]] of the [[Ancient Egypt]]. The [[Ancient Egypt]] is the [[Ancient Egyptian Egypt]] and the
+ood,/home/xinyuya2/jinwei/nsa/CS441-Trainable-Sparse-Attention-for-LLM-Inference-Acceleration/pretrain/ckpt/sparse_attn_mean_c16_f16_n4_seq4096_step_5000.pt,5000,4096,sparse_mean,0,,"Which ensemble method can be easily parallelized (trained simultaneously)?
+a) Boosting (e.g., AdaBoost, XGBoost)
+b) Bagging (e.g., Random Forest)
+c) RNNs
+d) Markov Chains",b,"Question: Which ensemble method can be easily parallelized (trained simultaneously)?
+a) Boosting (e.g., AdaBoost, XGBoost)
+b) Bagging (e.g., Random Forest)
+c) RNNs
+d) Markov Chains
+Answer:",256,0.0,1," (e.g. [[Random Booster]], [[Random Booster]], [[Random Booster]], [[Random Booster]], [[Random Booster]], [[Random Booster]], [[Random Booster]], [[Random Booster]], [[Random Booster]], [[Random Booster]], [[Random Booster]], [[Random Booster]], [[Random "
+id,/home/xinyuya2/jinwei/nsa/CS441-Trainable-Sparse-Attention-for-LLM-Inference-Acceleration/pretrain/ckpt/sparse_attn_mean_c16_f16_n4_seq4096_step_5000.pt,5000,4096,sparse_mean,,0,,,"ern highlands and does not partake of any other area's crops.  The most famous member of this crop system is [[coffee]], but one of the more useful plants is [[sorghum]], a dry-land grain.
+
+Ancient cultures also existed all along the [[Nile]], and in modern-day [[Ghana]] &lt;!-- and much more... --&gt;.
+
+==History of North Africa (3500 B.C. - 1500 A.D.)==
+=== Ancient Egypt ===
+''Main articles: [[History of Ancient Egypt]], [[Kush]]''
+
+Africa's earliest evidence of written history was in [[Ancient Egypt]], a",256,0.0,1,nd the [[Ancient Egyptians]] who was a second programmer of the [[Ancient Egyptians]] and [[Ancient Egyptians]] are also commonly used in the [[United Kingdom]] and [[United Kingdom|British]] [[common language|common]] [[common language|common]] and [[comm
