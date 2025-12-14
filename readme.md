@@ -212,7 +212,7 @@ Summarize the metrics for different evaluations here:
   <figcaption> Loss for a transformer pretrained with enwik8 dataset in full/sparse attention. Max sequence length=4096 and training steps=5000.</figcaption>
 </div>
 
-We can see sparse attention with compresion module of `GroupedMLP` can be even better than full attention: it coverage faster because it can focus the important information more accurately than other compression methods and filter those noisy tokens in full attention.
+We can see sparse attention with compresion module of `GroupedMLP` can be even better than full attention: it converges faster because it can focus the important information more accurately than other compression methods and filter those noisy tokens in full attention.
 
 ##### Fine-tune( based on Llama 3.2-12B)
 <figure style="display:flex; gap:16px; justify-content:center;">
