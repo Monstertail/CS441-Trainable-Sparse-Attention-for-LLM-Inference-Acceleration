@@ -199,19 +199,73 @@ These experiments guided the project direction: due to instability under memory 
 </details>
 
 ### Evaluation
+In this section, we evaluate the proposed sparse attention mechanism across three key dimensions: training dynamics, system efficiency, and generation quality. We use the following metrics to assess performance:
 
-Different compression modules and max context length
-#### pretraining time observation
+- Training Dynamics: We monitor Training Loss and Validation Loss (on enwik8) to measure convergence speed and stability. For fine-tuning tasks involving knowledge distillation, we specifically analyze Cross-Entropy (CE) Loss and Layer-wise Mean Squared Error (MSE) to evaluate student-teacher alignment.
+
+- System Efficiency: To quantify computational and memory advantages, we report Decoding Throughput (tokens/second) across varying batch sizes and prompt lengths, along with KV Cache Memory Access Savings (%) to demonstrate memory bandwidth optimization.
+
+- Model Quality: We measure Perplexity (PPL) to evaluate the model's predictive capability. This is tested on both In-Distribution (ID) data (enwik8) and Out-of-Distribution (OOD) data (CS441) to ensure generalization and robustness.
+
+#### training time observation
 - training loss and evaluation loss (enwik8 val)
 
+
+
+##### Pretrain( train a small transformer from scratch)
+<div align="center">
+  <img src="assets/pretrain_loss.jpg" />
+  <figcaption> Loss for a transformer pretrained with enwik8 dataset in full/sparse attention. Max sequence length=4096 and training steps=5000.</figcaption>
+</div>
+
+We can see sparse attention with compresion module of `GroupedMLP` can be even better than full attention: it converges faster because it can focus the important information more accurately than other compression methods and filter those noisy tokens in full attention.
+
+##### Fine-tune( based on Llama 3.2-12B)
+<figure style="display:flex; gap:16px; justify-content:center;">
+  <div style="text-align:center;">
+    <img src="assets/ft_ce_loss.png" width="40%">
+    <figcaption>(left) CE loss during fine-tuning.</figcaption>
+  </div>
+  <div style="text-align:center;">
+    <img src="assets/ft_mse_loss.png" width="40%">
+    <figcaption>(right) Average layerwise MSE loss during fine-tuning.</figcaption>
+  </div>
+</figure>
+
+We fine-tune a **sparse-attention student model** using an **adapter whose input is the original QKV representations**, with a **full-attention LLM as the teacher**.  
+We experimented with multiple objectives, including CE, KL, layer-wise MSE, and mixed losses. Empirically, **layer-wise MSE on hidden states leads to more stable and lower training loss than CE**, as shown in the figures.
+
+MSE outperforms CE because:
+- It provides denser supervision
+- It aligns representations instead of predictions
+- It is more robust to architectural mismatch (full → sparse attention)
+- It synergizes well with a QKV-based adapter
+
+But:
+- MSE is still data- and batch-hungry
+- Stability improves with larger batches, better normalization, or staged training
+
 #### Efficiency
-- metrics: peak memory, latency, throughput
+- metrics: decoding throughput, KV cache memory access saving among different batch sizes and prompt lengths.
 
+<div align="center"><img src="assets/decode_dashboard_seq4096_bs64_prompt3900_step5000_kvcacheenabled.png" /><figcaption>Efficiency dashboard: Comparing attention methods across batch sizes and prompt lengths (Generation steps = 100).</figcaption></div>
+
+- **Top Left (Throughput vs. Length):** Full Attention throughput degrades rapidly as prompts get longer, whereas Sparse Attention remains nearly constant. Note on Potential: Although our experiment is limited to 4K tokens, the trend suggests that Sparse Attention will eventually overtake Full Attention in speed at longer contexts. This crossover is already observed in models like DeepSeek (using NSA), where sparse attention proves superior at extreme lengths (e.g., 128K) by avoiding the computational burden of attending to every token.
+- **Top Right (Prefill vs. Decode):** Prefill takes less than 26% of the total time. This indicates that optimizing the decoding phase is the key to improving overall generation speed.
+- **Bottom Left (Batch Size):** The GPU becomes fully utilized at batch sizes $\ge$ 32. While Sparse Attention has some overhead for small batches, it performs consistently once the GPU is saturated.
+- **Bottom Right (Memory Savings):** Sparse Attention dramatically cuts KV cache memory usage by 85%-99%(we can offload the KV cache that is not used to CPU/SSD). This is essential for enabling long-context generation on hardware with limited VRAM.
 #### Quality
-- metrics: Perplexity in in-distribution and out-of-distribution case (enwik8 vs CS441)
+- metrics: Perplexity in in-distribution(ID) and out-of-distribution(OOD) case (enwik8 vs CS441)
 
+<div align="center">
+  <img src="assets/ppl_bars_step5000.png" />
+  <figcaption> Perplexity in in-distribution and out-of-distribution case (enwik8 vs CS441) for different attention methods and sequence lengthes.</figcaption>
+</div>
 
-
+We can see the inference time evaluation is quite aligned with the training behavior among those attention methods:
+- sparse attention+ `GroupedMLP` works best among not only all sparse attention methods but also be better than full attention, in both in-distrubtion and out-of-distribution cases.;
+- sparse attention+ `MeanPoolCompress` is the worse in perplexity because it's parameter-free.
+- In-distribution evaluation has lower perplexity than out-of-distribution case.
 
 
 ## 📝 Citation
