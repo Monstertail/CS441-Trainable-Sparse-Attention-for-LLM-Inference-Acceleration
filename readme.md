@@ -199,11 +199,21 @@ These experiments guided the project direction: due to instability under memory 
 </details>
 
 ### Evaluation
+Summarize the metrics for different evaluations here:
 
-Different compression modules and max context length
 #### training time observation
 - training loss and evaluation loss (enwik8 val)
+
+
+
 ##### Pretrain( train a small transformer from scratch)
+<div align="center">
+  <img src="assets/pretrain_loss.jpg" />
+  <figcaption> Loss for a transformer pretrained with enwik8 dataset in full/sparse attention. Max sequence length=4096 and training steps=5000.</figcaption>
+</div>
+
+We can see sparse attention with compresion module of `GroupedMLP` can be even better than full attention: it coverage faster because it can focus the important information more accurately than other compression methods and filter those noisy tokens in full attention.
+
 ##### Fine-tune( based on Llama 3.2-12B)
 <figure style="display:flex; gap:16px; justify-content:center;">
   <div style="text-align:center;">
@@ -230,13 +240,20 @@ But:
 - Stability improves with larger batches, better normalization, or staged training
 
 #### Efficiency
-- metrics: peak memory, latency, throughput
+- metrics: decoding throughput, KV cache memory access saving among different batch sizes and prompt lengths.
 
 #### Quality
 - metrics: Perplexity in in-distribution and out-of-distribution case (enwik8 vs CS441)
 
+<div align="center">
+  <img src="assets/ppl_bars_step5000.png" />
+  <figcaption> Perplexity in in-distribution and out-of-distribution case (enwik8 vs CS441) for different attention methods and sequence lengthes.</figcaption>
+</div>
 
-
+We can see the inference time evaluation is quite aligned with the training behavior among those attention methods:
+- sparse attention+ `GroupedMLP` works best among not only all sparse attention methods but also be better than full attention, in both in-distrubtion and out-of-distribution cases.;
+- sparse attention+ `MeanPoolCompress` is the worse in perplexity because it's parameter-free.
+- In-distribution evaluation has lower perplexity than out-of-distribution case.
 
 
 ## 📝 Citation
