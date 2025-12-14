@@ -199,7 +199,13 @@ These experiments guided the project direction: due to instability under memory 
 </details>
 
 ### Evaluation
-Summarize the metrics for different evaluations here:
+In this section, we evaluate the proposed sparse attention mechanism across three key dimensions: training dynamics, system efficiency, and generation quality. We use the following metrics to assess performance:
+
+- Training Dynamics: We monitor Training Loss and Validation Loss (on enwik8) to measure convergence speed and stability. For fine-tuning tasks involving knowledge distillation, we specifically analyze Cross-Entropy (CE) Loss and Layer-wise Mean Squared Error (MSE) to evaluate student-teacher alignment.
+
+- System Efficiency: To quantify computational and memory advantages, we report Decoding Throughput (tokens/second) across varying batch sizes and prompt lengths, along with KV Cache Memory Access Savings (%) to demonstrate memory bandwidth optimization.
+
+- Model Quality: We measure Perplexity (PPL) to evaluate the model's predictive capability. This is tested on both In-Distribution (ID) data (enwik8) and Out-of-Distribution (OOD) data (CS441) to ensure generalization and robustness.
 
 #### training time observation
 - training loss and evaluation loss (enwik8 val)
@@ -242,8 +248,14 @@ But:
 #### Efficiency
 - metrics: decoding throughput, KV cache memory access saving among different batch sizes and prompt lengths.
 
+<div align="center"><img src="assets/decode_dashboard_seq4096_bs64_prompt3900_step5000_kvcacheenabled.png" /><figcaption>Efficiency dashboard: Comparing attention methods across batch sizes and prompt lengths (Generation steps = 100).</figcaption></div>
+
+- **Top Left (Throughput vs. Length):** Full Attention throughput degrades rapidly as prompts get longer, whereas Sparse Attention remains nearly constant. Note on Potential: Although our experiment is limited to 4K tokens, the trend suggests that Sparse Attention will eventually overtake Full Attention in speed at longer contexts. This crossover is already observed in models like DeepSeek (using NSA), where sparse attention proves superior at extreme lengths (e.g., 128K) by avoiding the computational burden of attending to every token.
+- **Top Right (Prefill vs. Decode):** Prefill takes less than 26% of the total time. This indicates that optimizing the decoding phase is the key to improving overall generation speed.
+- **Bottom Left (Batch Size):** The GPU becomes fully utilized at batch sizes $\ge$ 32. While Sparse Attention has some overhead for small batches, it performs consistently once the GPU is saturated.
+- **Bottom Right (Memory Savings):** Sparse Attention dramatically cuts KV cache memory usage by 85%-99%(we can offload the KV cache that is not used to CPU/SSD). This is essential for enabling long-context generation on hardware with limited VRAM.
 #### Quality
-- metrics: Perplexity in in-distribution and out-of-distribution case (enwik8 vs CS441)
+- metrics: Perplexity in in-distribution(ID) and out-of-distribution(OOD) case (enwik8 vs CS441)
 
 <div align="center">
   <img src="assets/ppl_bars_step5000.png" />
