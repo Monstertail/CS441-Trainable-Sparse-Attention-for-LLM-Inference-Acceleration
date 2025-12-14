@@ -190,6 +190,9 @@ def measure_efficiency(
     model: torch.nn.Module,
     batch_size: int = 16,
     seq_len: int = 512,
+    prompt_len: int | None = None,
+    gen_len: int | None = None,
+    use_kv_cache: bool = True,
     warmup_iters: int = 10,
     measure_iters: int = 100,
     device: str = "cuda",
@@ -199,22 +202,48 @@ def measure_efficiency(
 
     model.eval()
 
-    # Prepare dummy input
-    dummy_input = torch.randint(
+    if seq_len <= 1:
+        raise ValueError(f"seq_len must be > 1, got {seq_len}")
+
+    if prompt_len is None:
+        prompt_len = max(1, seq_len // 2)
+    if gen_len is None:
+        gen_len = max(1, seq_len - prompt_len)
+
+    if prompt_len <= 0 or gen_len <= 0:
+        raise ValueError(f"prompt_len and gen_len must be > 0, got prompt_len={prompt_len}, gen_len={gen_len}")
+
+    # Prepare a fixed token buffer so we can avoid per-step torch.cat allocations.
+    # We will fill generated tokens in-place during decode.
+    token_buffer = torch.randint(
         low=0,
         high=DEFAULT_NUM_TOKENS,
-        size=(batch_size, seq_len),
+        size=(batch_size, prompt_len + gen_len),
         device=device,
         dtype=torch.long,
     )
+    prompt = token_buffer[:, :prompt_len]
 
-    # Warmup
+    # Full-attention path in this repo does NOT support a correct KV-cache inferencing path:
+    # when cache is provided, Transformer.forward embeds only the last token, and full attention
+    # would then attend over only that token (losing prompt context). So we must disable cache.
+    if use_kv_cache and isinstance(model, Transformer) and not getattr(model, "use_sparse_attn", False):
+        print("[warn] model is full attention; disabling KV cache for correctness in decode benchmark.")
+        use_kv_cache = False
+
+    # -----------------------
+    # Prefill (prompt forward)
+    # -----------------------
+
+    # Warmup prefill
     with torch.no_grad():
         for _ in range(warmup_iters):
-            _ = model(dummy_input)
-    torch.cuda.synchronize()
+            if use_kv_cache:
+                _ = model(prompt, return_cache=True)
+            else:
+                _ = model(prompt)
+    torch.cuda.synchronize(device)
 
-    # Reset memory stats before real measurement
     torch.cuda.reset_peak_memory_stats(device)
 
     start_event = torch.cuda.Event(enable_timing=True)
@@ -223,19 +252,94 @@ def measure_efficiency(
     start_event.record()
     with torch.no_grad():
         for _ in range(measure_iters):
-            _ = model(dummy_input)
+            if use_kv_cache:
+                _ = model(prompt, return_cache=True)
+            else:
+                _ = model(prompt)
     end_event.record()
-    torch.cuda.synchronize()
+    torch.cuda.synchronize(device)
 
     elapsed_time_ms = start_event.elapsed_time(end_event)
-    avg_time_per_batch_ms = elapsed_time_ms / float(measure_iters)
+    prefill_avg_ms_per_batch = elapsed_time_ms / float(measure_iters)
 
-    tokens_per_batch = batch_size * seq_len
-    tokens_per_sec = tokens_per_batch / (avg_time_per_batch_ms / 1000.0)
+    prefill_tokens_per_batch = batch_size * prompt_len
+    prefill_tokens_per_sec = prefill_tokens_per_batch / (prefill_avg_ms_per_batch / 1000.0)
 
-    peak_mem_mb = torch.cuda.max_memory_allocated(device) / 1024 ** 2
+    prefill_peak_mem_mb = torch.cuda.max_memory_allocated(device) / 1024 ** 2
 
-    return avg_time_per_batch_ms, tokens_per_sec, peak_mem_mb
+    # -----------------------
+    # Decode (autoregressive)
+    # -----------------------
+
+    # Warmup decode
+    with torch.no_grad():
+        warm_steps = min(gen_len, 4)
+        if warm_steps > 0:
+            # prefill once to get cache (if enabled)
+            cache = None
+            if use_kv_cache:
+                _, cache = model(prompt, return_cache=True)
+
+            cur_len = prompt_len
+            for _ in range(warm_steps):
+                if use_kv_cache:
+                    logits, cache = model(token_buffer[:, :cur_len], cache=cache, return_cache=True)
+                    next_token = logits[:, -1].argmax(dim=-1)
+                else:
+                    logits = model(token_buffer[:, :cur_len])
+                    next_token = logits[:, -1].argmax(dim=-1)
+                token_buffer[:, cur_len] = next_token
+                cur_len += 1
+
+    torch.cuda.synchronize(device)
+    torch.cuda.reset_peak_memory_stats(device)
+
+    start_event = torch.cuda.Event(enable_timing=True)
+    end_event = torch.cuda.Event(enable_timing=True)
+
+    start_event.record()
+    with torch.no_grad():
+        for _ in range(measure_iters):
+            # prefill once per measurement run to simulate real usage
+            cache = None
+            if use_kv_cache:
+                _, cache = model(prompt, return_cache=True)
+
+            cur_len = prompt_len
+            for _step in range(gen_len):
+                if use_kv_cache:
+                    logits, cache = model(token_buffer[:, :cur_len], cache=cache, return_cache=True)
+                    next_token = logits[:, -1].argmax(dim=-1)
+                else:
+                    logits = model(token_buffer[:, :cur_len])
+                    next_token = logits[:, -1].argmax(dim=-1)
+
+                if cur_len < token_buffer.size(1):
+                    token_buffer[:, cur_len] = next_token
+                cur_len += 1
+    end_event.record()
+    torch.cuda.synchronize(device)
+
+    elapsed_time_ms = start_event.elapsed_time(end_event)
+    decode_avg_ms_per_run = elapsed_time_ms / float(measure_iters)
+
+    decode_tokens_per_run = batch_size * gen_len
+    decode_tokens_per_sec = decode_tokens_per_run / (decode_avg_ms_per_run / 1000.0)
+
+    decode_peak_mem_mb = torch.cuda.max_memory_allocated(device) / 1024 ** 2
+
+    return {
+        "seq_len": seq_len,
+        "prompt_len": prompt_len,
+        "gen_len": gen_len,
+        "use_kv_cache": use_kv_cache,
+        "prefill_avg_ms_per_batch": prefill_avg_ms_per_batch,
+        "prefill_tokens_per_sec": prefill_tokens_per_sec,
+        "prefill_peak_mem_mb": prefill_peak_mem_mb,
+        "decode_avg_ms_per_run": decode_avg_ms_per_run,
+        "decode_tokens_per_sec": decode_tokens_per_sec,
+        "decode_peak_mem_mb": decode_peak_mem_mb,
+    }
 
 
 def parse_args():
@@ -271,15 +375,32 @@ def parse_args():
         ),
     )
     parser.add_argument(
+        "--prompt_len",
+        type=int,
+        default=None,
+        help="Prompt length for prefill. Default: seq_len//2",
+    )
+    parser.add_argument(
+        "--gen_len",
+        type=int,
+        default=None,
+        help="Generation length (number of decoded tokens). Default: seq_len - prompt_len",
+    )
+    parser.add_argument(
+        "--no_kv_cache",
+        action="store_true",
+        help="Disable KV cache in decode benchmark (cache is only supported/correct for sparse attention in this repo).",
+    )
+    parser.add_argument(
         "--warmup_iters",
         type=int,
-        default=10,
+        default=1,
         help="Number of warmup iterations",
     )
     parser.add_argument(
         "--measure_iters",
         type=int,
-        default=10,
+        default=3,
         help="Number of timing iterations",
     )
     parser.add_argument(
@@ -330,21 +451,29 @@ def main():
                 "Please pass --seq_len explicitly."
             )
 
-    avg_ms, tps, peak_mem = measure_efficiency(
+    stats = measure_efficiency(
         model=model,
         batch_size=args.batch_size,
         seq_len=seq_len,
+        prompt_len=args.prompt_len,
+        gen_len=args.gen_len,
+        use_kv_cache=not args.no_kv_cache,
         warmup_iters=args.warmup_iters,
         measure_iters=args.measure_iters,
         device=device,
     )
 
+    cache_str = "on" if stats["use_kv_cache"] else "off"
+    print(f"[{args.model_type}] seq_len={stats['seq_len']} prompt_len={stats['prompt_len']} gen_len={stats['gen_len']} kv_cache={cache_str}")
     print(
-        f"[{args.model_type}] "
-        f"(seq_len={seq_len}) "
-        f"Avg latency: {avg_ms:.2f} ms / batch | "
-        f"Throughput: {tps:.2f} tokens/s | "
-        f"Peak memory: {peak_mem:.2f} MB"
+        f"  Prefill: {stats['prefill_avg_ms_per_batch']:.2f} ms / batch | "
+        f"{stats['prefill_tokens_per_sec']:.2f} tokens/s | "
+        f"peak mem {stats['prefill_peak_mem_mb']:.2f} MB"
+    )
+    print(
+        f"  Decode : {stats['decode_avg_ms_per_run']:.2f} ms / run (gen_len={stats['gen_len']}) | "
+        f"{stats['decode_tokens_per_sec']:.2f} tokens/s | "
+        f"peak mem {stats['decode_peak_mem_mb']:.2f} MB"
     )
 
 
