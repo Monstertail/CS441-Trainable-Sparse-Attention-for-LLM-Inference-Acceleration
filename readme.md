@@ -355,6 +355,116 @@ nd the [[Ancient Egyptians]] who was a second programmer of the [[Ancient Egypti
 
 </details>
 
+<details>
+<summary><b>Generation examples (step=5000, seq_len=512)</b></summary>
+
+- **Setup**: gen_len=256, temperature=0.0, kv_cache=enabled  
+- **OOD example**: cs441 example_idx=0  
+- **ID example**: enwik8 valid offset=0 (prompt is raw bytes, rendered as text)  
+- **Note**: generations are truncated in README for readability
+
+#### OOD (CS441 synthetic QA)
+**Prompt**
+```text
+Question: Which ensemble method can be easily parallelized (trained simultaneously)?
+a) Boosting (e.g., AdaBoost, XGBoost)
+b) Bagging (e.g., Random Forest)
+c) RNNs
+d) Markov Chains
+Answer:
+```
+**Generated outputs**
+- **Full attention**
+```text
+ Baggart (except for the start of the star chairman of the star chain (except for the star) and the star chain of the star chain (except for the star). The star chain is the star chain of the star chain is the star chain of the star chain is the star chain
+```
+- **Sparse attention + ConvLinear**
+```text
+ The Baseball Company (Baseball Company)
+
+== Comparison ==
+
+The Baseball Company (Cambridge Cambridge) ==
+
+The Baseball Cambridge Cambridge (Babylon) is a complete state of the [[Babylonian Cambridge]] (Babylon 1976) and the [[Babylonian Cambridge]] (Babyl
+```
+- **Sparse attention + GroupedMLP**
+```text
+ Booston March (1998)
+
+=== Comparison of Chain ===
+
+* [[Comparison of China]]
+* [[Comparison of China]]
+* [[Comparison of China]]
+* [[Comparison of China]]
+* [[Comparison of China]]
+* [[Comparison of China]]
+* [[Comparison of China]]
+* [[Comparison of Chin
+```
+- **Sparse attention + AttentionPool**
+```text
+ A British Columbia Company (Babbage Company)
+
+=============
+*[[Albert Collection of Albania]]
+*[[Albert College]]
+*[[Albert College]]
+*[[Albert College]]
+*[[Albert College]]
+*[[Albert College]]
+*[[Albert College]]
+*[[Albert College]]
+*[[Albert College]]
+*
+```
+- **Sparse attention + MeanPool**
+```text
+ [[Battle of Barcelona]]
+
+=== Background ===
+
+The Basque states are also seen as a single state of the state of the state of the state of the state of the state of the state of the state of the state of the state of the state of the state of the state of t
+```
+
+#### ID (enwik8 validation snippet)
+**Prompt**
+```text
+ern highlands and does not partake of any other area's crops.  The most famous member of this crop system is [[coffee]], but one of the more useful plants is [[sorghum]], a dry-land grain.
+
+Ancient cultures also existed all along the [[Nile]], and in modern-day [[Ghana]] &lt;!-- and much more... --&gt;.
+
+==History of North Africa (3500 B.C. - 1500 A.D.)==
+=== Ancient Egypt ===
+''Main articles: [[History of Ancient Egypt]], [[Kush]]''
+
+Africa's earliest evidence of written history was in [[Ancient Egypt]], a
+```
+**Generated outputs**
+- **Full attention**
+```text
+nd in [[1970]]. The [[Ancient Greek programming language|Ancient Greek]] and [[Ancientiga]] and [[Ancientiversea]] and [[Ancientive model|Ancientive model]] and [[Ancientific model]] in [[1970]]. The [[Ancientived model]] is a [[first store]] and [[1970]]
+```
+- **Sparse attention + ConvLinear**
+```text
+nd the [[Arizona Scottish Egyptian School]] (1998). The [[Arizona Scottish Parliament]] (1988) and the [[Arizona Scottish Parliament]] (1988). The [[Arizona Party of Argentina|Argentina]] (1989) and the [[Argentina of Argentina|Argentina]] (1998) and the [
+```
+- **Sparse attention + GroupedMLP**
+```text
+nd the [[Arabic numeral election]] of the [[Arabic numeral election]] in [[1980]]. The [[Arabic numeral election in Arabic languages]] is a [[constitution of Arabic languages]] ([[1980]]), and [[Arabic language|Arabic]] are the [[Arabic languages]] of [[Ar
+```
+- **Sparse attention + AttentionPool**
+```text
+nd the [[Anti-Semitism]] and [[Anti-Semitism]] are also a [[statistical system]] of [[state]] and [[statute]]. The [[state]] is a [[state]] of [[state]] and [[statute]] of [[state]] and [[statute]]. The [[state]] is a [[state]] of [[state]] and [[stroke]]
+```
+- **Sparse attention + MeanPool**
+```text
+nd the [[Anglo-Saxon English language|Alexander English]] and [[Alexander English]] and [[Alexander English]] and [[Alexander English]] and [[Alexander English]] and [[Alexander English]] and [[Alexander English]] and [[Alexander English]] and [[Alexander
+```
+
+</details>
+
 
 ## 📝 Citation
 

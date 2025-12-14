@@ -18,13 +18,14 @@ GEN_SCRIPT="${PROJECT_ROOT}/evaluation/lightweight_output_example.py"
 #   EXAMPLE_IDX=0
 #   GEN_LEN=256
 
+# SEQ_LEN="4096"
+SEQ_LEN="512"
 STEP="${1:-5000}"
-OUT_CSV="${2:-"${SCRIPT_DIR}/exp_result/generation_step${STEP}_seq4096.csv"}"
+OUT_CSV="${2:-"${SCRIPT_DIR}/exp_result/generation_step${STEP}_seq${SEQ_LEN}.csv"}"
 EXAMPLE_IDX="${3:-0}"
 GEN_LEN="${4:-256}"
 EXTRA_ARGS=("${@:5}")
 
-SEQ_LEN="4096"
 
 echo "Step: ${STEP}"
 echo "Seq len: ${SEQ_LEN}"
